@@ -1,0 +1,24 @@
+{
+  "timestamp": "20260330_212526",
+  "date": "2026-03-30 21:25:45",
+  "database": "bakery",
+  "tables": [
+    "doughs",
+    "ingredients",
+    "materials",
+    "mixing_machines",
+    "mixing_records",
+    "preparation_ingredients",
+    "preparation_recipes",
+    "preparations",
+    "products",
+    "recipe_ingredients_archive",
+    "recipe_ingredients_current",
+    "recipe_versions",
+    "recipes",
+    "users",
+    "workday_slots",
+    "workflow_templates"
+  ],
+  "backup_file": "/Users/ru1dongzzd/Docker/bakery/backups/bakery_backup_20260330_212526.sql"
+}

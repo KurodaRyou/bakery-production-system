@@ -1,0 +1,15 @@
+{
+  "entryFile": "src/types/errors.ts",
+  "noImplicitAdditionalProperties": "silently-remove-extras",
+  "controllerPathGlobs": ["src/routes/*.ts"],
+  "spec": {
+    "outputDirectory": "build/swagger",
+    "host": "localhost:8080"
+  },
+  "routes": {
+    "basePath": "/api",
+    "entryFile": "src/types/errors.ts",
+    "routesDir": "src/generated",
+    "middleware": "express"
+  }
+}

@@ -1,0 +1,49 @@
+services:
+  # Bakery Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bakery-backend
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - BAKERY_MASTER_KEY=${BAKERY_MASTER_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Bakery Frontend (Vite production build)
+  frontend:
+    build:
+      context: ./bakery-web
+      dockerfile: Dockerfile
+    container_name: bakery-frontend
+    ports:
+      - "127.0.0.1:5173:80"
+    restart: unless-stopped
+
+  # Cloudflare Tunnel (only if token is set)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: bakery-tunnel
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    profiles:
+      - tunnel
+
+networks:
+  default:
+    name: bakery-network

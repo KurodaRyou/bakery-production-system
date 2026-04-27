@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "bakery": {
+      "command": "node",
+      "args": ["/Users/ru1dongzzd/Docker/bakery/mcp-server/dist/index.js"],
+      "env": {
+        "BAKERY_API_TOKEN": "<your-token>",
+        "BAKERY_API_URL": "http://localhost:8080"
+      }
+    }
+  }
+}

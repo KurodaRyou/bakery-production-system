@@ -13,7 +13,6 @@ import {
 import express from 'express';
 import { pool } from '../config/db';
 import {
-  getTimezone,
   compareVersions,
   generateVersionNumber,
 } from '../config/versioning';
@@ -60,7 +59,7 @@ export interface DoughRecipe {
   current_version: string | null;
   created_at: string | null;
   updated_at: string | null;
-  timezone: string | null;
+  
   material_name: string | null;
   material_type: string | null;
 }
@@ -135,11 +134,11 @@ export interface RestoreResponse {
 
 export interface VersionInfo {
   id: number;
-  recipe_id: number;
+  dough_id: number;
   version_number: string;
   expected_temp: number | null;
   created_at: string | null;
-  timezone: string | null;
+  
 }
 
 export interface DoughRecipeVersion extends VersionInfo {
@@ -153,9 +152,9 @@ async function deleteMaterialIfOrphaned(
   if (!materialId) return;
   const [refs]: any = await connection.query(
     `SELECT 1 FROM ingredients WHERE material_id = ? UNION ALL
-     SELECT 1 FROM dough_recipes WHERE material_id = ? UNION ALL
-     SELECT 1 FROM preparation_recipes WHERE material_id = ? UNION ALL
-     SELECT 1 FROM dough_recipe_ingredients_current WHERE material_id = ? UNION ALL
+     SELECT 1 FROM doughs WHERE material_id = ? UNION ALL
+     SELECT 1 FROM preparations WHERE material_id = ? UNION ALL
+     SELECT 1 FROM dough_ingredients_current WHERE material_id = ? UNION ALL
      SELECT 1 FROM preparation_ingredients_current WHERE material_id = ?`,
     [materialId, materialId, materialId, materialId, materialId],
   );
@@ -171,8 +170,8 @@ export class DoughRecipesController extends Controller {
   public async listDoughRecipes(): Promise<DoughRecipe[]> {
     const [recipes]: any = await pool.query(
       `SELECT r.id, r.name, r.author, r.material_id, r.current_version,
-              r.created_at, r.updated_at, r.timezone, m.name as material_name, m.type as material_type
-       FROM dough_recipes r
+              r.created_at, r.updated_at, m.name as material_name, m.type as material_type
+       FROM doughs r
        LEFT JOIN materials m ON r.material_id = m.id
        WHERE m.type = 'dough'
        ORDER BY r.id DESC`,
@@ -192,9 +191,9 @@ export class DoughRecipesController extends Controller {
 
     const [recipes]: any = await pool.query(
       `SELECT r.id, r.name, r.author, r.material_id, r.current_version,
-              r.created_at, r.updated_at, r.timezone,
+              r.created_at, r.updated_at,
               m.name as material_name, m.type as material_type
-       FROM dough_recipes r
+       FROM doughs r
        LEFT JOIN materials m ON r.material_id = m.id
        WHERE r.material_id = ?`,
       [materialId],
@@ -207,15 +206,15 @@ export class DoughRecipesController extends Controller {
     const [ingredients]: any = await pool.query(
       `SELECT ric.id, ric.material_id, ric.stage, ric.percentage, ric.note, ric.unit,
               m.name as material_name, m.type as material_type
-       FROM dough_recipe_ingredients_current ric
+       FROM dough_ingredients_current ric
        LEFT JOIN materials m ON ric.material_id = m.id
-       WHERE ric.recipe_id = ? AND ric.version = ?
+       WHERE ric.dough_id = ? AND ric.version = ?
        ORDER BY ric.stage, ric.id`,
       [recipes[0].id, recipes[0].current_version],
     );
 
     const [versionInfo]: any = await pool.query(
-      'SELECT expected_temp FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+      'SELECT expected_temp FROM dough_versions WHERE dough_id = ? AND version_number = ?',
       [recipes[0].id, recipes[0].current_version],
     );
 
@@ -252,9 +251,9 @@ export class DoughRecipesController extends Controller {
 
     const [recipes]: any = await pool.query(
       `SELECT r.id, r.name, r.author, r.material_id, r.current_version,
-              r.created_at, r.updated_at, r.timezone,
+              r.created_at, r.updated_at,
               m.name as material_name, m.type as material_type
-       FROM dough_recipes r
+       FROM doughs r
        LEFT JOIN materials m ON r.material_id = m.id
        WHERE r.id = ?`,
       [id],
@@ -267,15 +266,15 @@ export class DoughRecipesController extends Controller {
     const [ingredients]: any = await pool.query(
       `SELECT ric.id, ric.material_id, ric.stage, ric.percentage, ric.note, ric.unit,
               m.name as material_name, m.type as material_type
-       FROM dough_recipe_ingredients_current ric
+       FROM dough_ingredients_current ric
        LEFT JOIN materials m ON ric.material_id = m.id
-       WHERE ric.recipe_id = ? AND ric.version = ?
+       WHERE ric.dough_id = ? AND ric.version = ?
        ORDER BY ric.stage, ric.id`,
       [id, recipes[0].current_version],
     );
 
     const [versionInfo]: any = await pool.query(
-      'SELECT expected_temp FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+      'SELECT expected_temp FROM dough_versions WHERE dough_id = ? AND version_number = ?',
       [id, recipes[0].current_version],
     );
 
@@ -332,66 +331,61 @@ export class DoughRecipesController extends Controller {
 
       const versionNumber = await generateVersionNumber(connection, null);
 
-      let relatedId: number | null = null;
       if (type === 'dough') {
-        const [existingDoughs]: any = await connection.query(
-          'SELECT id FROM doughs WHERE material_id = ?',
-          [materialId],
+        const [result]: any = await connection.query(
+          'INSERT INTO doughs (name, material_id, author, current_version) VALUES (?, ?, ?, ?)',
+          [name, materialId, author || null, versionNumber],
         );
-        if (existingDoughs.length > 0) {
-          relatedId = existingDoughs[0].id;
-        } else {
-          const [doughResult]: any = await connection.query(
-            'INSERT INTO doughs (name, material_id) VALUES (?, ?)',
-            [name, materialId],
-          );
-          relatedId = doughResult.insertId;
-        }
-      } else if (type === 'preparation') {
-        const [existingPreps]: any = await connection.query(
-          'SELECT id FROM preparations WHERE material_id = ?',
-          [materialId],
-        );
-        let prepTypeId: number;
-        if (existingPreps.length > 0) {
-          prepTypeId = existingPreps[0].id;
-        } else {
-          const [prepTypeResult]: any = await connection.query(
-            'INSERT INTO preparations (name, material_id) VALUES (?, ?)',
-            [name, materialId],
-          );
-          prepTypeId = prepTypeResult.insertId;
-        }
-
-        const [existingPreps2]: any = await connection.query(
-          'SELECT id FROM preparation_recipes WHERE material_id = ?',
-          [materialId],
-        );
-        if (existingPreps2.length > 0) {
-          relatedId = existingPreps2[0].id;
-        } else {
-          const [prepResult]: any = await connection.query(
-            'INSERT INTO preparation_recipes (name, preparation_id, material_id, author, current_version) VALUES (?, ?, ?, ?, ?)',
-            [name, prepTypeId, materialId, author || null, versionNumber],
-          );
-          relatedId = prepResult.insertId;
-        }
+        const recipeId = result.insertId;
 
         await connection.query(
-          'INSERT INTO preparation_versions (recipe_id, version_number, author, timezone) VALUES (?, ?, ?, ?)',
-          [relatedId, versionNumber, author || null, getTimezone()],
+          'INSERT INTO dough_versions (dough_id, version_number, expected_temp, author) VALUES (?, ?, ?, ?)',
+          [recipeId, versionNumber, toNumber(expected_temp, null), author || null],
         );
 
         if (ingredients && ingredients.length > 0) {
           for (const ing of ingredients) {
             await connection.query(
-              'INSERT INTO preparation_ingredients_current (preparation_recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              'INSERT INTO dough_ingredients_current (dough_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
               [
-                relatedId,
-                versionNumber,
+                recipeId, versionNumber,
+                toNumber(ing.material_id, 0), ing.stage || 'base',
+                toNumber(ing.percentage, null), toNullableString(ing.note),
+                toNullableString(ing.unit), toNumber(ing.loss_rate, 1),
+              ],
+            );
+          }
+        }
+
+        await connection.commit();
+        return {
+          success: true,
+          id: recipeId,
+          material_id: materialId,
+          related_id: null,
+          version: versionNumber,
+        };
+      } else if (type === 'preparation') {
+        const [result]: any = await connection.query(
+          'INSERT INTO preparations (name, material_id, author, current_version) VALUES (?, ?, ?, ?)',
+          [name, materialId, author || null, versionNumber],
+        );
+        const recipeId = result.insertId;
+
+        await connection.query(
+          'INSERT INTO preparation_versions (dough_id, version_number, author) VALUES (?, ?, ?)',
+          [recipeId, versionNumber, author || null],
+        );
+
+        if (ingredients && ingredients.length > 0) {
+          for (const ing of ingredients) {
+            await connection.query(
+              'INSERT INTO preparation_ingredients_current (preparation_id, version, material_id, percentage, stage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              [
+                recipeId, versionNumber,
                 toNumber(ing.material_id, 0),
-                ing.stage || 'base',
                 toNumber(ing.percentage, null),
+                ing.stage || 'base',
                 toNullableString(ing.note),
                 toNullableString(ing.unit),
                 toNumber(ing.loss_rate, 1),
@@ -403,50 +397,13 @@ export class DoughRecipesController extends Controller {
         await connection.commit();
         return {
           success: true,
-          id: relatedId,
+          id: recipeId,
           material_id: materialId,
-          related_id: prepTypeId,
+          related_id: null,
           version: versionNumber,
         };
       }
 
-      const [result]: any = await connection.query(
-        'INSERT INTO dough_recipes (name, material_id, author, current_version) VALUES (?, ?, ?, ?)',
-        [name, materialId, author || null, versionNumber],
-      );
-      const recipeId = result.insertId;
-
-      await connection.query(
-        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, author, timezone) VALUES (?, ?, ?, ?, ?)',
-        [recipeId, versionNumber, toNumber(expected_temp, null), author || null, getTimezone()],
-      );
-
-      if (ingredients && ingredients.length > 0) {
-        for (const ing of ingredients) {
-          await connection.query(
-            'INSERT INTO dough_recipe_ingredients_current (recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [
-              recipeId,
-              versionNumber,
-              toNumber(ing.material_id, 0),
-              ing.stage || 'base',
-              toNumber(ing.percentage, null),
-              toNullableString(ing.note),
-              toNullableString(ing.unit),
-              toNumber(ing.loss_rate, 1),
-            ],
-          );
-        }
-      }
-
-      await connection.commit();
-      return {
-        success: true,
-        id: recipeId,
-        material_id: materialId,
-        related_id: relatedId,
-        version: versionNumber,
-      };
     } catch (error) {
       await connection.rollback();
       console.error('DB error:', error);
@@ -475,7 +432,7 @@ export class DoughRecipesController extends Controller {
       }
 
       const [recipeRows]: any = await connection.query(
-        'SELECT current_version FROM dough_recipes WHERE id = ?',
+        'SELECT current_version FROM doughs WHERE id = ?',
         [id],
       );
       if (recipeRows.length === 0) {
@@ -484,7 +441,7 @@ export class DoughRecipesController extends Controller {
       const currentVersion = recipeRows[0].current_version;
 
       const [currentIngredients]: any = await connection.query(
-        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_recipe_ingredients_current WHERE recipe_id = ? AND version = ?',
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_ingredients_current WHERE dough_id = ? AND version = ?',
         [id, currentVersion],
       );
 
@@ -503,7 +460,7 @@ export class DoughRecipesController extends Controller {
       const normalizedNew = normalize(ingredients || []);
 
       const [currentVersionRow]: any = await connection.query(
-        'SELECT expected_temp FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+        'SELECT expected_temp FROM dough_versions WHERE dough_id = ? AND version_number = ?',
         [id, currentVersion],
       );
 
@@ -520,37 +477,37 @@ export class DoughRecipesController extends Controller {
       const newVersion = await generateVersionNumber(connection, id);
 
       const [versionResult]: any = await connection.query(
-        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, author, timezone) VALUES (?, ?, ?, ?, ?)',
-        [id, newVersion, expected_temp || null, author || null, getTimezone()],
+        'INSERT INTO dough_versions (dough_id, version_number, expected_temp, author) VALUES (?, ?, ?, ?, ?)',
+        [id, newVersion, expected_temp || null, author || null],
       );
 
       // Archive current ingredients under the CURRENT version's id (the one being replaced)
       const [oldVersionRow]: any = await connection.query(
-        'SELECT id FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+        'SELECT id FROM dough_versions WHERE dough_id = ? AND version_number = ?',
         [id, currentVersion],
       );
 
       for (const ing of currentIngredients) {
         await connection.query(
-          'INSERT INTO dough_recipe_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO dough_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [oldVersionRow[0]?.id, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
         );
       }
 
       await connection.query(
-        'UPDATE dough_recipes SET name = ?, author = ?, current_version = ? WHERE id = ?',
+        'UPDATE doughs SET name = ?, author = ?, current_version = ? WHERE id = ?',
         [name, author || null, newVersion, id],
       );
 
       await connection.query(
-        'DELETE FROM dough_recipe_ingredients_current WHERE recipe_id = ? AND version = ?',
+        'DELETE FROM dough_ingredients_current WHERE dough_id = ? AND version = ?',
         [id, currentVersion],
       );
 
       if (ingredients && ingredients.length > 0) {
         for (const ing of ingredients) {
           await connection.query(
-            'INSERT INTO dough_recipe_ingredients_current (recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO dough_ingredients_current (dough_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
               id,
               newVersion,
@@ -588,30 +545,30 @@ export class DoughRecipesController extends Controller {
       }
 
       const [recipe]: any = await connection.query(
-        'SELECT material_id FROM dough_recipes WHERE id = ?',
+        'SELECT material_id FROM doughs WHERE id = ?',
         [id],
       );
       const materialId = recipe.length > 0 ? recipe[0].material_id : null;
 
       const [versions]: any = await connection.query(
-        'SELECT id FROM dough_recipe_versions WHERE recipe_id = ?',
+        'SELECT id FROM dough_versions WHERE dough_id = ?',
         [id],
       );
       for (const v of versions) {
         await connection.query(
-          'DELETE FROM dough_recipe_ingredients_archive WHERE version_id = ?',
+          'DELETE FROM dough_ingredients_archive WHERE version_id = ?',
           [v.id],
         );
       }
       await connection.query(
-        'DELETE FROM dough_recipe_versions WHERE recipe_id = ?',
+        'DELETE FROM dough_versions WHERE dough_id = ?',
         [id],
       );
       await connection.query(
-        'DELETE FROM dough_recipe_ingredients_current WHERE recipe_id = ?',
+        'DELETE FROM dough_ingredients_current WHERE dough_id = ?',
         [id],
       );
-      await connection.query('DELETE FROM dough_recipes WHERE id = ?', [id]);
+      await connection.query('DELETE FROM doughs WHERE id = ?', [id]);
       await deleteMaterialIfOrphaned(connection, materialId);
 
       await connection.commit();
@@ -633,7 +590,7 @@ export class DoughRecipesController extends Controller {
     }
 
     const [versions]: any = await pool.query(
-      'SELECT id, recipe_id, version_number, expected_temp, created_at, timezone FROM dough_recipe_versions WHERE recipe_id = ?',
+      'SELECT id, dough_id, version_number, expected_temp, created_at FROM dough_versions WHERE dough_id = ?',
       [id],
     );
     versions.sort((a: VersionInfo, b: VersionInfo) =>
@@ -654,7 +611,7 @@ export class DoughRecipesController extends Controller {
     }
 
     const [versions]: any = await pool.query(
-      'SELECT * FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+      'SELECT * FROM dough_versions WHERE dough_id = ? AND version_number = ?',
       [id, versionNumber],
     );
     if (versions.length === 0) {
@@ -664,7 +621,7 @@ export class DoughRecipesController extends Controller {
     const [ingredients]: any = await pool.query(
       `SELECT a.stage, a.material_id, a.percentage, a.note, a.unit, a.loss_rate,
               m.name as material_name, m.type as material_type
-       FROM dough_recipe_ingredients_archive a
+       FROM dough_ingredients_archive a
        LEFT JOIN materials m ON a.material_id = m.id
        WHERE a.version_id = ? ORDER BY a.stage, a.id`,
       [versions[0].id],
@@ -701,7 +658,7 @@ export class DoughRecipesController extends Controller {
       }
 
       const [versions]: any = await connection.query(
-        'SELECT * FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+        'SELECT * FROM dough_versions WHERE dough_id = ? AND version_number = ?',
         [id, versionNumber],
       );
       if (versions.length === 0) {
@@ -710,7 +667,7 @@ export class DoughRecipesController extends Controller {
       const versionToRestore = versions[0];
 
       const [recipeRows]: any = await connection.query(
-        'SELECT current_version FROM dough_recipes WHERE id = ?',
+        'SELECT current_version FROM doughs WHERE id = ?',
         [id],
       );
       const currentVersion = recipeRows[0].current_version;
@@ -718,18 +675,18 @@ export class DoughRecipesController extends Controller {
 
       // Archive current ingredients before replacing them
       const [currentIngredients]: any = await connection.query(
-        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_recipe_ingredients_current WHERE recipe_id = ? AND version = ?',
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_ingredients_current WHERE dough_id = ? AND version = ?',
         [id, currentVersion],
       );
       if (currentIngredients.length > 0) {
         const [versionInfo]: any = await connection.query(
-          'SELECT id FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+          'SELECT id FROM dough_versions WHERE dough_id = ? AND version_number = ?',
           [id, currentVersion],
         );
         if (versionInfo.length > 0) {
           for (const ing of currentIngredients) {
             await connection.query(
-              'INSERT INTO dough_recipe_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              'INSERT INTO dough_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
               [versionInfo[0].id, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
             );
           }
@@ -737,29 +694,29 @@ export class DoughRecipesController extends Controller {
       }
 
       await connection.query(
-        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, author, timezone) VALUES (?, ?, ?, ?, ?)',
-        [id, newVersion, versionToRestore.expected_temp || null, versionToRestore.author || null, getTimezone()],
+        'INSERT INTO dough_versions (dough_id, version_number, expected_temp, author) VALUES (?, ?, ?, ?, ?)',
+        [id, newVersion, versionToRestore.expected_temp || null, versionToRestore.author || null],
       );
 
       await connection.query(
-        'DELETE FROM dough_recipe_ingredients_current WHERE recipe_id = ? AND version = ?',
+        'DELETE FROM dough_ingredients_current WHERE dough_id = ? AND version = ?',
         [id, currentVersion],
       );
 
       const [archivedIngredients]: any = await connection.query(
-        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_recipe_ingredients_archive WHERE version_id = ?',
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_ingredients_archive WHERE version_id = ?',
         [versionToRestore.id],
       );
 
       for (const ing of archivedIngredients) {
         await connection.query(
-          'INSERT INTO dough_recipe_ingredients_current (recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO dough_ingredients_current (dough_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           [id, newVersion, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
         );
       }
 
       await connection.query(
-        'UPDATE dough_recipes SET current_version = ?, author = ? WHERE id = ?',
+        'UPDATE doughs SET current_version = ?, author = ? WHERE id = ?',
         [newVersion, versionToRestore.author || null, id],
       );
 

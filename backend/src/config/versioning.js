@@ -17,7 +17,7 @@ function compareVersions(a, b) {
     return parsedA.suffix - parsedB.suffix;
 }
 
-function generateVersionNumber(connection, recipeId, table = 'dough_recipe_versions') {
+function generateVersionNumber(connection, recipeId, table = 'dough_versions') {
     const today = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
     const prefix = `v${today}`;
     

@@ -101,6 +101,31 @@ node setup-api-token.js
 
 ---
 
+## 待开发功能
+
+### 原材料删除保护（软拦截方案）
+
+**问题**：删除某个原材料时，如果有配方引用了该原材料，应该如何处理？
+
+**方案（讨论结论）**：
+
+1. **后端软拦截**
+   - 删除原材料前查询 `dough_ingredients_current` 和 `preparation_ingredients_current` 中是否有引用
+   - 如有引用，返回被哪些配方使用，但仍是允许删除
+   - 需处理 `preparation_ingredients_current` 的 FK 约束（`fk_prep_mat`），考虑是否去掉改为软约束
+
+2. **前端确认弹窗**
+   - 收到后端返回的引用列表后，弹窗告知用户「该原材料被 XX、YY 配方使用」
+   - 用户确认后强制删除
+
+3. **配方页孤配料提醒**
+   - 配方详情页加载时，检查 ingredients 中 `material_id` 是否仍存在于 `materials` 表
+   - 如不存在，标记为「已删除的原材料（id=XXX）」以示提醒
+
+**待决定**：是否去掉 `fk_prep_mat` FK 约束改为纯代码软约束。
+
+---
+
 ## MCP Server
 
 Model Context Protocol server，供 LLM 通过标准协议查询和操作数据。

@@ -217,7 +217,7 @@ BAKERY_MASTER_KEY=<64-char-hex-key>
 
 | 日期 | 更新内容 |
 |------|----------|
-| 2026-04-28 | 重构：合并 `doughs` + `dough_recipes` → `doughs`，合并 `preparations` + `preparation_recipes` → `preparations`；移除 `timezone`/`source_id`/`preparation_id` 列；重命名版本表 `dough_recipe_versions` → `dough_versions`，配料表 `dough_recipe_ingredients_*` → `dough_ingredients_*` |
+| 2026-04-28 | 优化：清理 `mixing_records.dough_name`/`timezone` 列，删除 4 张 legacy 表，提取 `deleteMaterialIfOrphaned` 到共享文件 |
 | 2026-04-28 | 修复：新建配方选择"半成品"类型时，preparation 分支逻辑缺失（未创建 preparations/preparation_recipes/current_version/preparation_versions/preparation_ingredients_current），导致半成品 current_version 为 null |
 | 2026-04-28 | 修复：MixingCalculator 下拉菜单 ID 冲突——后端新增 `/dough/by-material/{materialId}` 和 `/preparations/by-material/{materialId}` 端点，前端统一用 material_id 作为 select value |
 | 2026-04-27 | 新增：Bearer Token 认证 |

@@ -2,9 +2,8 @@ import { useState, useEffect } from 'react'
 import { fetchRecipeById, deleteRecipe, fetchRecipeVersions, restoreRecipeVersion } from '../services/api'
 import EditRecipeView from './EditRecipeView'
 
-function formatTimeWithTimezone(utcTime, timezone) {
-  const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return new Date(utcTime).toLocaleString('zh-CN', { timeZone: tz });
+function formatTimeWithTimezone(utcTime) {
+  return new Date(utcTime).toLocaleString('zh-CN');
 }
 
 function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
@@ -246,7 +245,7 @@ function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
                     <div className="list-item-content">
                       <div className="list-item-title">版本 {v.version_number}</div>
                       <div className="list-item-subtitle">
-                        {formatTimeWithTimezone(v.created_at, v.timezone)}
+                        {formatTimeWithTimezone(v.created_at)}
                       </div>
                     </div>
                     <span className="chevron">恢复</span>

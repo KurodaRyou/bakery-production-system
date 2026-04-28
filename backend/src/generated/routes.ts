@@ -241,7 +241,6 @@ const models: TsoaRoute.Models = {
             "name": {"dataType":"string","required":true},
             "author": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "material_id": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "preparation_id": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "current_version": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "loss_rate": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "created_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
@@ -258,7 +257,6 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "id": {"dataType":"double","required":true},
-            "preparation_id": {"dataType":"double","required":true},
             "material_id": {"dataType":"double","required":true},
             "name": {"dataType":"string","required":true},
             "version": {"dataType":"string","required":true},
@@ -302,10 +300,9 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "id": {"dataType":"double","required":true},
-            "recipe_id": {"dataType":"double","required":true},
+            "preparation_id": {"dataType":"double","required":true},
             "version_number": {"dataType":"string","required":true},
             "created_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "timezone": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
         },
         "additionalProperties": false,
     },
@@ -416,7 +413,6 @@ const models: TsoaRoute.Models = {
             "current_version": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "created_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "updated_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "timezone": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "material_name": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "material_type": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
         },
@@ -449,7 +445,6 @@ const models: TsoaRoute.Models = {
             "current_version": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "created_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "updated_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "timezone": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "material_name": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "material_type": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "ingredients": {"dataType":"array","array":{"dataType":"refObject","ref":"DoughRecipeIngredient"},"required":true},
@@ -510,11 +505,10 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "id": {"dataType":"double","required":true},
-            "recipe_id": {"dataType":"double","required":true},
+            "dough_id": {"dataType":"double","required":true},
             "version_number": {"dataType":"string","required":true},
             "expected_temp": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "created_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "timezone": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
         },
         "additionalProperties": false,
     },
@@ -523,11 +517,10 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "id": {"dataType":"double","required":true},
-            "recipe_id": {"dataType":"double","required":true},
+            "dough_id": {"dataType":"double","required":true},
             "version_number": {"dataType":"string","required":true},
             "expected_temp": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "created_at": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
-            "timezone": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "ingredients": {"dataType":"array","array":{"dataType":"refObject","ref":"DoughRecipeIngredient"},"required":true},
         },
         "additionalProperties": false,
@@ -1123,6 +1116,37 @@ export function RegisterRoutes(app: Router) {
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsPreparationsController_getPreparationByMaterial: Record<string, TsoaRoute.ParameterSchema> = {
+                materialId: {"in":"path","name":"materialId","required":true,"dataType":"double"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/preparations/by-material/:materialId',
+            ...(fetchMiddlewares<RequestHandler>(PreparationsController)),
+            ...(fetchMiddlewares<RequestHandler>(PreparationsController.prototype.getPreparationByMaterial)),
+
+            async function PreparationsController_getPreparationByMaterial(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsPreparationsController_getPreparationByMaterial, request, response });
+
+                const controller = new PreparationsController();
+
+              await templateService.apiHandler({
+                methodName: 'getPreparationByMaterial',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsPreparationsController_getPreparation: Record<string, TsoaRoute.ParameterSchema> = {
                 id: {"in":"path","name":"id","required":true,"dataType":"double"},
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
@@ -1683,6 +1707,37 @@ export function RegisterRoutes(app: Router) {
 
               await templateService.apiHandler({
                 methodName: 'listDoughRecipes',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDoughRecipesController_getDoughRecipeByMaterial: Record<string, TsoaRoute.ParameterSchema> = {
+                materialId: {"in":"path","name":"materialId","required":true,"dataType":"double"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/dough/by-material/:materialId',
+            ...(fetchMiddlewares<RequestHandler>(DoughRecipesController)),
+            ...(fetchMiddlewares<RequestHandler>(DoughRecipesController.prototype.getDoughRecipeByMaterial)),
+
+            async function DoughRecipesController_getDoughRecipeByMaterial(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDoughRecipesController_getDoughRecipeByMaterial, request, response });
+
+                const controller = new DoughRecipesController();
+
+              await templateService.apiHandler({
+                methodName: 'getDoughRecipeByMaterial',
                 controller,
                 response,
                 next,

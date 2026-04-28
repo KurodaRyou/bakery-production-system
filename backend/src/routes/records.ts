@@ -122,8 +122,8 @@ export class RecordsController extends Controller {
     const [rows]: any = await pool.query(`
       SELECT r.*, r.timezone, rv.expected_temp
       FROM mixing_records r
-      LEFT JOIN dough_recipes rp ON r.dough_name = rp.name
-      LEFT JOIN dough_recipe_versions rv ON rp.id = rv.recipe_id AND rp.current_version = rv.version_number
+      LEFT JOIN doughs rp ON r.dough_name = rp.name
+      LEFT JOIN dough_versions rv ON rp.id = rv.recipe_id AND rp.current_version = rv.version_number
       ORDER BY r.batch_number DESC
     `);
     return rows;

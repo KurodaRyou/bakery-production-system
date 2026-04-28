@@ -373,7 +373,7 @@ export class DoughRecipesController extends Controller {
         const recipeId = result.insertId;
 
         await connection.query(
-          'INSERT INTO preparation_versions (dough_id, version_number, author) VALUES (?, ?, ?)',
+          'INSERT INTO preparation_versions (preparation_id, version_number, author) VALUES (?, ?, ?)',
           [recipeId, versionNumber, author || null],
         );
 

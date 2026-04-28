@@ -123,7 +123,7 @@ export class RecordsController extends Controller {
       SELECT r.*, r.timezone, rv.expected_temp
       FROM mixing_records r
       LEFT JOIN doughs rp ON r.dough_name = rp.name
-      LEFT JOIN dough_versions rv ON rp.id = rv.recipe_id AND rp.current_version = rv.version_number
+      LEFT JOIN dough_versions rv ON rp.id = rv.dough_id AND rp.current_version = rv.version_number
       ORDER BY r.batch_number DESC
     `);
     return rows;

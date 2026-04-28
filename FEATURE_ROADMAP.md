@@ -93,9 +93,10 @@
   products 表
   ├── id
   ├── name (产品名称)
-  ├── material_id (关联 materials.id)
+  ├── dough_id (关联 doughs.id)
+  ├── other_ingredients (JSON)
   ├── description
-  └── is_active
+  └── created_at / updated_at
 
   work_tasks 表
   ├── id

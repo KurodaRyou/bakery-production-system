@@ -37,6 +37,21 @@ declare global {
   }
 }
 
+function toNumber(val: string | number | null | undefined, defaultVal: number): number {
+  if (val === null || val === undefined) return defaultVal;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? defaultVal : parsed;
+  }
+  return defaultVal;
+}
+
+function toNullableString(val: string | null | undefined): string | null {
+  if (val === null || val === undefined) return null;
+  return val;
+}
+
 export interface Recipe {
   id: number;
   name: string;
@@ -70,34 +85,34 @@ export interface RecipeDetail extends Recipe {
 export interface CreateRecipeRequest {
   name: string;
   type: 'dough' | 'preparation';
-  author?: string;
+  author?: string | null;
   ingredients?: Array<{
-    material_id: number;
+    material_id: number | string;
     stage?: string;
-    percentage?: number;
-    note?: string;
-    unit?: string;
-    loss_rate?: number;
+    percentage?: number | string | null;
+    note?: string | null;
+    unit?: string | null;
+    loss_rate?: number | string | null;
   }>;
-  expected_temp?: number;
-  loss_rate?: number;
+  expected_temp?: number | string | null;
+  loss_rate?: number | string | null;
 }
 
 export interface UpdateRecipeRequest {
   name: string;
   material_id?: number | string;
-  author?: string;
+  author?: string | null;
   ingredients?: Array<{
     material_id: number | string;
     stage?: string;
-    percentage?: number | string;
+    percentage?: number | string | null;
     note?: string | null;
     unit?: string | null;
-    loss_rate?: number | string;
+    loss_rate?: number | string | null;
   }>;
   expected_temp?: number | string | null;
   loss_rate?: number | string;
-  description?: string;
+  description?: string | null;
 }
 
 export interface CreateRecipeResponse {
@@ -295,7 +310,7 @@ export class RecipesController extends Controller {
 
       await connection.query(
         'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, timezone) VALUES (?, ?, ?, ?)',
-        [recipeId, versionNumber, expected_temp || null, getTimezone()],
+        [recipeId, versionNumber, toNumber(expected_temp, null), getTimezone()],
       );
 
       if (ingredients && ingredients.length > 0) {
@@ -305,12 +320,12 @@ export class RecipesController extends Controller {
             [
               recipeId,
               versionNumber,
-              ing.material_id,
+              toNumber(ing.material_id, 0),
               ing.stage || 'base',
-              ing.percentage || null,
-              ing.note || null,
-              ing.unit || null,
-              ing.loss_rate || 1,
+              toNumber(ing.percentage, null),
+              toNullableString(ing.note),
+              toNullableString(ing.unit),
+              toNumber(ing.loss_rate, 1),
             ],
           );
         }
@@ -418,12 +433,12 @@ export class RecipesController extends Controller {
             [
               id,
               newVersion,
-              ing.material_id,
+              toNumber(ing.material_id, 0),
               ing.stage || 'base',
-              ing.percentage || null,
-              ing.note || null,
-              ing.unit || null,
-              ing.loss_rate || 1,
+              toNumber(ing.percentage, null),
+              toNullableString(ing.note),
+              toNullableString(ing.unit),
+              toNumber(ing.loss_rate, 1),
             ],
           );
         }

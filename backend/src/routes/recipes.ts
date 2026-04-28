@@ -394,9 +394,17 @@ export class RecipesController extends Controller {
       const normalizedCurrent = normalize(currentIngredients);
       const normalizedNew = normalize(ingredients || []);
 
-      const isEqual = JSON.stringify(normalizedCurrent) === JSON.stringify(normalizedNew);
+      const [currentVersionRow]: any = await connection.query(
+        'SELECT expected_temp FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+        [id, currentVersion],
+      );
 
-      if (isEqual) {
+      const ingredientsEqual = JSON.stringify(normalizedCurrent) === JSON.stringify(normalizedNew);
+      const oldTemp = Number(currentVersionRow[0]?.expected_temp);
+      const newTemp = Number(expected_temp);
+      const tempEqual = (isNaN(oldTemp) && isNaN(newTemp)) || oldTemp === newTemp;
+
+      if (ingredientsEqual && tempEqual) {
         await connection.commit();
         return { success: true, version: currentVersion };
       }

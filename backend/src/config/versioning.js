@@ -17,12 +17,12 @@ function compareVersions(a, b) {
     return parsedA.suffix - parsedB.suffix;
 }
 
-function generateVersionNumber(connection, recipeId, table = 'dough_versions') {
+function generateVersionNumber(connection, recipeId, table = 'dough_versions', fkColumn = 'dough_id') {
     const today = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
     const prefix = `v${today}`;
     
     return connection.query(
-        `SELECT version_number FROM ${table} WHERE recipe_id = ? AND version_number LIKE ?`,
+        `SELECT version_number FROM ${table} WHERE ${fkColumn} = ? AND version_number LIKE ?`,
         [recipeId, `${prefix}%`]
     ).then(([rows]) => {
         if (rows.length === 0) {

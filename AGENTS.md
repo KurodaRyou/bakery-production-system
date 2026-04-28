@@ -111,17 +111,20 @@ Backend → returns session-like object with user data
 | created_at | DATETIME | |
 | updated_at | DATETIME | |
 
-### dough_ingredients_archive (was dough_recipe_ingredients_archive)
+### dough_ingredients_archive (与 current 字段一致，仅 FK 不同)
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INT | PK, AUTO_INCREMENT |
 | version_id | INT | FK → dough_versions.id |
+| version | VARCHAR(20) | |
 | material_id | INT | FK → materials.id |
 | stage | ENUM('preferment','base','late') | DEFAULT 'base' |
 | percentage | DECIMAL(5,2) | |
 | note | VARCHAR(1000) | |
 | unit | VARCHAR(20) | |
 | loss_rate | DECIMAL(5,2) | DEFAULT 1.00 |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
 
 ### preparations (合并 preparations + preparation_recipes)
 | Column | Type | Constraints |
@@ -161,17 +164,20 @@ Backend → returns session-like object with user data
 | created_at | DATETIME | |
 | updated_at | DATETIME | |
 
-### preparation_ingredients_archive
+### preparation_ingredients_archive (与 current 字段一致，仅 FK 不同)
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | INT | PK, AUTO_INCREMENT |
 | version_id | INT | FK → preparation_versions.id |
+| version | VARCHAR(20) | |
 | material_id | INT | FK → materials.id |
 | stage | VARCHAR(20) | DEFAULT 'base' |
 | percentage | DECIMAL(5,2) | |
 | note | VARCHAR(1000) | |
 | unit | VARCHAR(20) | |
 | loss_rate | DECIMAL(5,2) | DEFAULT 1.00 |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
 ### ingredients (原材料)
 | Column | Type | Constraints |
 |--------|------|-------------|

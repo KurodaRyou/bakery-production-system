@@ -523,11 +523,10 @@ recipesMap.set(row.id, {
       await connection.beginTransaction();
 
       const [recipe]: any = await connection.query(
-        'SELECT material_id, preparation_id FROM preparations WHERE id = ?',
+        'SELECT material_id FROM preparations WHERE id = ?',
         [id],
       );
       const materialId = recipe.length > 0 ? recipe[0].material_id : null;
-      const preparationId = recipe.length > 0 ? recipe[0].preparation_id : null;
 
       const [versions]: any = await connection.query(
         'SELECT id FROM preparation_versions WHERE preparation_id = ?',
@@ -553,20 +552,7 @@ recipesMap.set(row.id, {
       );
       await deleteMaterialIfOrphaned(connection, materialId);
 
-      if (preparationId) {
-        const [refs]: any = await connection.query(
-          'SELECT 1 FROM preparations WHERE preparation_id = ?',
-          [preparationId],
-        );
-        if (refs.length === 0) {
-          await connection.query(
-            'DELETE FROM preparations WHERE id = ?',
-            [preparationId],
-          );
-        }
-      }
-
-      await connection.commit();
+        await connection.commit();
       return { success: true };
     } catch (error) {
       await connection.rollback();
@@ -654,7 +640,7 @@ recipesMap.set(row.id, {
       );
       const currentVersion = recipeRows[0].current_version;
 
-      const newVersion = await generateVersionNumber(connection, id, 'preparation_versions');
+      const newVersion = await generateVersionNumber(connection, id, 'preparation_versions', 'preparation_id');
 
       // Archive current ingredients before replacing them
       const [currentIngredients]: any = await connection.query(
@@ -677,7 +663,7 @@ recipesMap.set(row.id, {
       }
 
       await connection.query(
-        'INSERT INTO preparation_versions (preparation_id, version_number, author) VALUES (?, ?, ?, ?)',
+        'INSERT INTO preparation_versions (preparation_id, version_number, author) VALUES (?, ?, ?)',
         [id, newVersion, versionToRestore.author || null],
       );
 

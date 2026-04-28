@@ -477,7 +477,7 @@ export class DoughRecipesController extends Controller {
       const newVersion = await generateVersionNumber(connection, id);
 
       const [versionResult]: any = await connection.query(
-        'INSERT INTO dough_versions (dough_id, version_number, expected_temp, author) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO dough_versions (dough_id, version_number, expected_temp, author) VALUES (?, ?, ?, ?)',
         [id, newVersion, expected_temp || null, author || null],
       );
 
@@ -694,7 +694,7 @@ export class DoughRecipesController extends Controller {
       }
 
       await connection.query(
-        'INSERT INTO dough_versions (dough_id, version_number, expected_temp, author) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO dough_versions (dough_id, version_number, expected_temp, author) VALUES (?, ?, ?, ?)',
         [id, newVersion, versionToRestore.expected_temp || null, versionToRestore.author || null],
       );
 

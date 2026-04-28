@@ -37,8 +37,8 @@ function MixingCalculator({ onBack }) {
     ...preparations.map(p => ({ ...p, itemType: 'preparation', displayType: '半成品' }))
   ]
 
-  async function handleSelect(itemId) {
-    const item = allItems.find(i => i.id === itemId)
+  async function handleSelect(materialId) {
+    const item = allItems.find(i => i.material_id === Number(materialId))
     if (!item) return
 
     setSelectedItem(item)
@@ -46,10 +46,11 @@ function MixingCalculator({ onBack }) {
 
     try {
       if (item.itemType === 'dough') {
-        const fullRecipe = await fetchRecipeById(item.id)
+        const res = await fetch(`/api/dough/by-material/${materialId}`, { credentials: 'include' })
+        const fullRecipe = await res.json()
         setSelectedIngredients(fullRecipe.ingredients || [])
       } else {
-        const res = await fetch(`/api/preparations/${item.id}`, { credentials: 'include' })
+        const res = await fetch(`/api/preparations/by-material/${materialId}`, { credentials: 'include' })
         const prepData = await res.json()
         setSelectedIngredients(prepData.ingredients || [])
       }
@@ -221,8 +222,8 @@ function MixingCalculator({ onBack }) {
         <div className="form-row">
           <label>配方/半成品</label>
           <select
-            value={selectedItem?.id || ''}
-            onChange={e => handleSelect(parseInt(e.target.value))}
+            value={selectedItem ? String(selectedItem.material_id) : ''}
+            onChange={e => handleSelect(e.target.value)}
             disabled={loading}
             style={{
               flex: 1,
@@ -238,12 +239,12 @@ function MixingCalculator({ onBack }) {
             <option value="">选择配方</option>
             <optgroup label="面团">
               {recipes.map(r => (
-                <option key={r.id} value={r.id}>{r.name}</option>
+                <option key={r.material_id} value={r.material_id}>{r.name}</option>
               ))}
             </optgroup>
             <optgroup label="半成品">
               {preparations.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.material_id} value={p.material_id}>{p.name}</option>
               ))}
             </optgroup>
           </select>

@@ -180,6 +180,66 @@ export class DoughRecipesController extends Controller {
     return recipes;
   }
 
+  @Get('by-material/{materialId}')
+  @Middlewares(requireAuth)
+  public async getDoughRecipeByMaterial(
+    @Path() materialId: number,
+    @Request() req: express.Request,
+  ): Promise<DoughRecipeDetail> {
+    if (isNaN(materialId)) {
+      throw AppError.badRequest('无效的 material ID');
+    }
+
+    const [recipes]: any = await pool.query(
+      `SELECT r.id, r.name, r.author, r.material_id, r.current_version,
+              r.created_at, r.updated_at, r.timezone,
+              m.name as material_name, m.type as material_type
+       FROM dough_recipes r
+       LEFT JOIN materials m ON r.material_id = m.id
+       WHERE r.material_id = ?`,
+      [materialId],
+    );
+
+    if (recipes.length === 0) {
+      throw AppError.notFound('DoughRecipe not found');
+    }
+
+    const [ingredients]: any = await pool.query(
+      `SELECT ric.id, ric.material_id, ric.stage, ric.percentage, ric.note, ric.unit,
+              m.name as material_name, m.type as material_type
+       FROM dough_recipe_ingredients_current ric
+       LEFT JOIN materials m ON ric.material_id = m.id
+       WHERE ric.recipe_id = ? AND ric.version = ?
+       ORDER BY ric.stage, ric.id`,
+      [recipes[0].id, recipes[0].current_version],
+    );
+
+    const [versionInfo]: any = await pool.query(
+      'SELECT expected_temp FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+      [recipes[0].id, recipes[0].current_version],
+    );
+
+    let result: DoughRecipeDetail = {
+      ...recipes[0],
+      ingredients,
+      expected_temp: versionInfo[0]?.expected_temp || null,
+    };
+
+    if (!req.session!.canViewRecipes) {
+      result = {
+        ...recipes[0],
+        ingredients: ingredients.map((ing: any) => ({
+          ...ing,
+          material_name: '******',
+          note: '******',
+        })),
+        expected_temp: versionInfo[0]?.expected_temp || null,
+      };
+    }
+
+    return result;
+  }
+
   @Get('{id}')
   @Middlewares(requireAuth)
   public async getDoughRecipe(
@@ -289,18 +349,65 @@ export class DoughRecipesController extends Controller {
         }
       } else if (type === 'preparation') {
         const [existingPreps]: any = await connection.query(
+          'SELECT id FROM preparations WHERE material_id = ?',
+          [materialId],
+        );
+        let prepTypeId: number;
+        if (existingPreps.length > 0) {
+          prepTypeId = existingPreps[0].id;
+        } else {
+          const [prepTypeResult]: any = await connection.query(
+            'INSERT INTO preparations (name, material_id) VALUES (?, ?)',
+            [name, materialId],
+          );
+          prepTypeId = prepTypeResult.insertId;
+        }
+
+        const [existingPreps2]: any = await connection.query(
           'SELECT id FROM preparation_recipes WHERE material_id = ?',
           [materialId],
         );
-        if (existingPreps.length > 0) {
-          relatedId = existingPreps[0].id;
+        if (existingPreps2.length > 0) {
+          relatedId = existingPreps2[0].id;
         } else {
           const [prepResult]: any = await connection.query(
-            'INSERT INTO preparation_recipes (name, material_id, author) VALUES (?, ?, ?)',
-            [name, materialId, author || null],
+            'INSERT INTO preparation_recipes (name, preparation_id, material_id, author, current_version) VALUES (?, ?, ?, ?, ?)',
+            [name, prepTypeId, materialId, author || null, versionNumber],
           );
           relatedId = prepResult.insertId;
         }
+
+        await connection.query(
+          'INSERT INTO preparation_versions (recipe_id, version_number, author, timezone) VALUES (?, ?, ?, ?)',
+          [relatedId, versionNumber, author || null, getTimezone()],
+        );
+
+        if (ingredients && ingredients.length > 0) {
+          for (const ing of ingredients) {
+            await connection.query(
+              'INSERT INTO preparation_ingredients_current (preparation_recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              [
+                relatedId,
+                versionNumber,
+                toNumber(ing.material_id, 0),
+                ing.stage || 'base',
+                toNumber(ing.percentage, null),
+                toNullableString(ing.note),
+                toNullableString(ing.unit),
+                toNumber(ing.loss_rate, 1),
+              ],
+            );
+          }
+        }
+
+        await connection.commit();
+        return {
+          success: true,
+          id: relatedId,
+          material_id: materialId,
+          related_id: prepTypeId,
+          version: versionNumber,
+        };
       }
 
       const [result]: any = await connection.query(

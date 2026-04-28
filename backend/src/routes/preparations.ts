@@ -199,6 +199,53 @@ export class PreparationsController extends Controller {
     return Array.from(recipesMap.values());
   }
 
+  @Get('by-material/{materialId}')
+  @Middlewares(requireAuth)
+  public async getPreparationByMaterial(
+    @Path() materialId: number,
+    @Request() req: express.Request,
+  ): Promise<Preparation> {
+    if (isNaN(materialId)) {
+      throw AppError.badRequest('无效的 material ID');
+    }
+
+    const [recipes]: any = await pool.query(
+      `SELECT pr.id, pr.name, pr.author, pr.material_id, pr.preparation_id, pr.current_version, pr.loss_rate,
+              pr.created_at, pr.updated_at, m.name as material_name, m.type as material_type
+       FROM preparation_recipes pr
+       LEFT JOIN materials m ON pr.material_id = m.id
+       WHERE pr.material_id = ?`,
+      [materialId],
+    );
+
+    if (recipes.length === 0) {
+      throw AppError.notFound('Preparation not found');
+    }
+
+    const recipe = recipes[0];
+
+    const [ingredients]: any = await pool.query(
+      `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
+              m.name as material_name, m.type as material_type
+       FROM preparation_ingredients_current pic
+       LEFT JOIN materials m ON pic.material_id = m.id
+       WHERE pic.preparation_recipe_id = ? AND pic.version = ?`,
+      [recipe.id, recipe.current_version],
+    );
+
+    if (!req.session!.canViewRecipes) {
+      recipe.ingredients = ingredients.map((ing: any) => ({
+        ...ing,
+        material_name: '******',
+        note: '******',
+      }));
+    } else {
+      recipe.ingredients = ingredients;
+    }
+
+    return recipe;
+  }
+
   @Get('{id}')
   @Middlewares(requireAuth)
   public async getPreparation(

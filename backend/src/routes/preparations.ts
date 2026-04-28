@@ -221,14 +221,19 @@ recipesMap.set(row.id, {
 
     const recipe = recipes[0];
 
-    const [ingredients]: any = await pool.query(
-      `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
-              m.name as material_name, m.type as material_type
-       FROM preparation_ingredients_current pic
-       LEFT JOIN materials m ON pic.material_id = m.id
-       WHERE pic.preparation_id = ? AND pic.version = ?`,
-      [recipe.id, recipe.current_version],
-    );
+    const ingredientsQuery = recipe.current_version
+      ? `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
+                m.name as material_name, m.type as material_type
+         FROM preparation_ingredients_current pic
+         LEFT JOIN materials m ON pic.material_id = m.id
+         WHERE pic.preparation_id = ? AND pic.version = ?`
+      : `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
+                m.name as material_name, m.type as material_type
+         FROM preparation_ingredients_current pic
+         LEFT JOIN materials m ON pic.material_id = m.id
+         WHERE pic.preparation_id = ?`;
+    const ingredientParams = recipe.current_version ? [recipe.id, recipe.current_version] : [recipe.id];
+    const [ingredients]: any = await pool.query(ingredientsQuery, ingredientParams);
 
     if (!req.session!.canViewRecipes) {
       recipe.ingredients = ingredients.map((ing: any) => ({
@@ -268,14 +273,19 @@ recipesMap.set(row.id, {
 
     const recipe = recipes[0];
 
-    const [ingredients]: any = await pool.query(
-      `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
-              m.name as material_name, m.type as material_type
-       FROM preparation_ingredients_current pic
-       LEFT JOIN materials m ON pic.material_id = m.id
-       WHERE pic.preparation_id = ? AND pic.version = ?`,
-      [id, recipe.current_version],
-    );
+    const ingredientsQuery = recipe.current_version
+      ? `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
+                m.name as material_name, m.type as material_type
+         FROM preparation_ingredients_current pic
+         LEFT JOIN materials m ON pic.material_id = m.id
+         WHERE pic.preparation_id = ? AND pic.version = ?`
+      : `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
+                m.name as material_name, m.type as material_type
+         FROM preparation_ingredients_current pic
+         LEFT JOIN materials m ON pic.material_id = m.id
+         WHERE pic.preparation_id = ?`;
+    const ingredientParams = recipe.current_version ? [id, recipe.current_version] : [id];
+    const [ingredients]: any = await pool.query(ingredientsQuery, ingredientParams);
 
     if (!req.session!.canViewRecipes) {
       recipe.ingredients = ingredients.map((ing: any) => ({

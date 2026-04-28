@@ -65,16 +65,16 @@ export interface PreparationRecipe extends Preparation {}
 
 export interface CreatePreparationRequest {
   name: string;
-  author?: string;
-  description?: string;
-  loss_rate?: number;
+  author?: string | null;
+  description?: string | null;
+  loss_rate?: number | string | null;
   ingredients?: Array<{
-    material_id: number;
+    material_id: number | string;
     stage?: string;
-    percentage?: number;
-    note?: string;
-    unit?: string;
-    loss_rate?: number;
+    percentage?: number | string | null;
+    note?: string | null;
+    unit?: string | null;
+    loss_rate?: number | string | null;
   }>;
 }
 
@@ -88,15 +88,15 @@ export interface CreatePreparationResponse {
 
 export interface UpdatePreparationRequest {
   name: string;
-  author?: string;
-  loss_rate?: number;
+  author?: string | null;
+  loss_rate?: number | string | null;
   ingredients?: Array<{
-    material_id: number;
+    material_id: number | string;
     stage?: string;
-    percentage?: number;
-    note?: string;
-    unit?: string;
-    loss_rate?: number;
+    percentage?: number | string | null;
+    note?: string | null;
+    unit?: string | null;
+    loss_rate?: number | string | null;
   }>;
 }
 

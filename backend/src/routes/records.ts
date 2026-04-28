@@ -36,7 +36,6 @@ declare global {
 
 export interface MixingRecord {
   batch_number: string;
-  dough_name: string;
   dough_id: number | null;
   dry_temp: number | null;
   room_temp: number | null;
@@ -54,7 +53,6 @@ export interface MixingRecord {
   bulk_ferment_time: number | null;
   created_at: string | null;
   updated_at: string | null;
-  timezone: string | null;
   expected_temp?: number | null;
 }
 
@@ -67,7 +65,6 @@ export interface RecordsListResponse {
 
 export interface CreateRecordRequest {
   batch_number: string;
-  dough_name: string;
   dough_id?: number | null;
   dry_temp?: number;
   room_temp?: number;
@@ -85,7 +82,6 @@ export interface CreateRecordRequest {
 }
 
 export interface UpdateRecordRequest {
-  dough_name?: string;
   dough_id?: number | null;
   dry_temp?: number;
   room_temp?: number;
@@ -115,7 +111,7 @@ export class RecordsController extends Controller {
       const parsedLimit = Math.min(limit || 100, 500);
       const parsedOffset = offset || 0;
       const [rows]: any = await pool.query(
-        'SELECT *, timezone FROM mixing_records ORDER BY batch_number DESC LIMIT ? OFFSET ?',
+        'SELECT * FROM mixing_records ORDER BY batch_number DESC LIMIT ? OFFSET ?',
         [parsedLimit, parsedOffset],
       );
       const [[{ total }]]: any = await pool.query('SELECT COUNT(*) as total FROM mixing_records');
@@ -123,7 +119,7 @@ export class RecordsController extends Controller {
     }
 
     const [rows]: any = await pool.query(`
-      SELECT r.*, r.timezone, rv.expected_temp
+      SELECT r.*, rv.expected_temp
       FROM mixing_records r
       LEFT JOIN doughs rp ON r.dough_id = rp.id
       LEFT JOIN dough_versions rv ON rp.id = rv.dough_id AND rp.current_version = rv.version_number
@@ -147,9 +143,6 @@ export class RecordsController extends Controller {
     if (!record.batch_number) {
       throw AppError.badRequest('批次号不能为空');
     }
-    if (!record.dough_name) {
-      throw AppError.badRequest('面团种类不能为空');
-    }
 
     if ('created_at' in record || 'updated_at' in record) {
       throw AppError.badRequest('字段 created_at, updated_at 不可手动设置');
@@ -157,12 +150,12 @@ export class RecordsController extends Controller {
 
     try {
       const sql = `INSERT INTO mixing_records
-        (batch_number, dough_name, dough_id, dry_temp, room_temp, ice_ratio, water_temp,
+        (batch_number, dough_id, dry_temp, room_temp, ice_ratio, water_temp,
          flour_amount, water_amount, machine_speed, gluten_level,
-         output_temp, machine, operator, bulk_ferment_temp, bulk_ferment_time, timezone)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+         output_temp, machine, operator, bulk_ferment_temp, bulk_ferment_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       await pool.query(sql, [
-        record.batch_number, record.dough_name, record.dough_id || null, record.dry_temp, record.room_temp,
+        record.batch_number, record.dough_id || null, record.dry_temp, record.room_temp,
         record.ice_ratio, record.water_temp, record.flour_amount, record.water_amount,
         record.machine_speed, record.gluten_level, record.output_temp,
         record.machine, record.operator, record.bulk_ferment_temp, record.bulk_ferment_time,
@@ -202,7 +195,7 @@ export class RecordsController extends Controller {
     }
 
     const allowedFields: Record<string, string> = {
-      dough_name: 'dough_name', dry_temp: 'dry_temp', room_temp: 'room_temp',
+      dough_id: 'dough_id', dry_temp: 'dry_temp', room_temp: 'room_temp',
       ice_ratio: 'ice_ratio', water_temp: 'water_temp', flour_amount: 'flour_amount',
       water_amount: 'water_amount', dough_weight: 'dough_weight', machine_speed: 'machine_speed',
       gluten_level: 'gluten_level', output_temp: 'output_temp', machine: 'machine',

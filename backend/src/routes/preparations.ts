@@ -12,6 +12,7 @@ import {
 } from '@tsoa/runtime';
 import express from 'express';
 import { pool } from '../config/db';
+import { deleteMaterialIfOrphaned } from '../config/deleteMaterialIfOrphaned';
 import { generateVersionNumber } from '../config/versioning';
 import { requireAuth, requireAdmin } from '../middleware/auth';
 import { AppError } from '../types/errors';
@@ -123,23 +124,6 @@ export interface PreparationVersionIngredient {
   material_type: string | null;
 }
 
-async function deleteMaterialIfOrphaned(
-  connection: any,
-  materialId: number | null,
-) {
-  if (!materialId) return;
-  const [refs]: any = await connection.query(
-    `SELECT 1 FROM ingredients WHERE material_id = ? UNION ALL
-     SELECT 1 FROM doughs WHERE material_id = ? UNION ALL
-     SELECT 1 FROM preparations WHERE material_id = ? UNION ALL
-     SELECT 1 FROM dough_ingredients_current WHERE material_id = ? UNION ALL
-     SELECT 1 FROM preparation_ingredients_current WHERE material_id = ?`,
-    [materialId, materialId, materialId, materialId, materialId],
-  );
-  if (refs.length === 0) {
-    await connection.query('DELETE FROM materials WHERE id = ?', [materialId]);
-  }
-}
 
 @Route('preparations')
 export class PreparationsController extends Controller {

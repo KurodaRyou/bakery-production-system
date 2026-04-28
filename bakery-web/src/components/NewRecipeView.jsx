@@ -292,27 +292,26 @@ function NewRecipeView({ onBack, onSuccess, showHeader = true }) {
           />
         </div>
         {type === 'dough' && (
-          <>
-            <div className="form-row">
-              <label>预期出缸温度</label>
-              <input 
-                type="number" 
-                placeholder="如：26" 
-                value={expected_temp}
-                onChange={e => setExpectedTemp(e.target.value)}
-              />
-            </div>
-            <div className="form-row">
-              <label>损耗率</label>
-              <input 
-                type="number" 
-                step="0.01"
-                placeholder="如：0.95" 
-                value={loss_rate}
-                onChange={e => setLossRate(e.target.value)}
-              />
-            </div>
-          </>
+          <div className="form-row">
+            <label>预期出缸温度</label>
+            <input 
+              type="number" 
+              placeholder="如：26" 
+              value={expected_temp}
+              onChange={e => setExpectedTemp(e.target.value)}
+            />
+          </div>
+        )}
+        <div className="form-row">
+          <label>损耗率</label>
+          <input 
+            type="number" 
+            step="0.01"
+            placeholder="如：0.95" 
+            value={loss_rate}
+            onChange={e => setLossRate(e.target.value)}
+          />
+        </div>
         )}
       </div>
 
@@ -345,18 +344,6 @@ function NewRecipeView({ onBack, onSuccess, showHeader = true }) {
       ) : (
         <div>
           <div className="section-header">材料</div>
-          <div className="form-section">
-            <div className="form-row">
-              <label>损耗率</label>
-              <input 
-                type="number" 
-                step="0.01"
-                placeholder="如：0.95" 
-                value={loss_rate}
-                onChange={e => setLossRate(e.target.value)}
-              />
-            </div>
-          </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={materials.map((m, i) => m.sortableId)} strategy={verticalListSortingStrategy}>
               <div className="form-section">

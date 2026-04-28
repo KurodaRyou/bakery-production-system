@@ -274,7 +274,6 @@ function EditRecipeView({ recipe, onBack, onSuccess }) {
           />
         </div>
         {recipe.material_type === 'dough' && (
-        <>
         <div className="form-row">
           <label>预期出缸温度</label>
           <input 
@@ -284,18 +283,17 @@ function EditRecipeView({ recipe, onBack, onSuccess }) {
             onChange={e => setExpectedTemp(e.target.value)}
           />
         </div>
-        <div className="form-row">
-          <label>损耗率</label>
-          <input 
-            type="number" 
-            step="0.01"
-            placeholder="如：0.95" 
-            value={loss_rate}
-            onChange={e => setLossRate(e.target.value)}
-          />
-        </div>
-        </>
       )}
+      <div className="form-row">
+        <label>损耗率</label>
+        <input 
+          type="number" 
+          step="0.01"
+          placeholder="如：0.95" 
+          value={loss_rate}
+          onChange={e => setLossRate(e.target.value)}
+        />
+      </div>
       </div>
 
       {recipe.material_type === 'dough' ? (
@@ -341,18 +339,6 @@ function EditRecipeView({ recipe, onBack, onSuccess }) {
       ) : (
         <div>
           <div className="section-header">材料</div>
-          <div className="form-section">
-            <div className="form-row">
-              <label>损耗率</label>
-              <input 
-                type="number" 
-                step="0.01"
-                placeholder="如：0.95" 
-                value={loss_rate}
-                onChange={e => setLossRate(e.target.value)}
-              />
-            </div>
-          </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={materials.map(m => m.sortableId)} strategy={verticalListSortingStrategy}>
               <div className="form-section">

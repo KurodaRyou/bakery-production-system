@@ -37,6 +37,7 @@ declare global {
 export interface MixingRecord {
   batch_number: string;
   dough_name: string;
+  dough_id: number | null;
   dry_temp: number | null;
   room_temp: number | null;
   ice_ratio: number | null;
@@ -67,6 +68,7 @@ export interface RecordsListResponse {
 export interface CreateRecordRequest {
   batch_number: string;
   dough_name: string;
+  dough_id?: number | null;
   dry_temp?: number;
   room_temp?: number;
   ice_ratio?: number;
@@ -84,6 +86,7 @@ export interface CreateRecordRequest {
 
 export interface UpdateRecordRequest {
   dough_name?: string;
+  dough_id?: number | null;
   dry_temp?: number;
   room_temp?: number;
   ice_ratio?: number;
@@ -122,7 +125,7 @@ export class RecordsController extends Controller {
     const [rows]: any = await pool.query(`
       SELECT r.*, r.timezone, rv.expected_temp
       FROM mixing_records r
-      LEFT JOIN doughs rp ON r.dough_name = rp.name
+      LEFT JOIN doughs rp ON r.dough_id = rp.id
       LEFT JOIN dough_versions rv ON rp.id = rv.dough_id AND rp.current_version = rv.version_number
       ORDER BY r.batch_number DESC
     `);
@@ -154,12 +157,12 @@ export class RecordsController extends Controller {
 
     try {
       const sql = `INSERT INTO mixing_records
-        (batch_number, dough_name, dry_temp, room_temp, ice_ratio, water_temp,
+        (batch_number, dough_name, dough_id, dry_temp, room_temp, ice_ratio, water_temp,
          flour_amount, water_amount, machine_speed, gluten_level,
          output_temp, machine, operator, bulk_ferment_temp, bulk_ferment_time, timezone)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       await pool.query(sql, [
-        record.batch_number, record.dough_name, record.dry_temp, record.room_temp,
+        record.batch_number, record.dough_name, record.dough_id || null, record.dry_temp, record.room_temp,
         record.ice_ratio, record.water_temp, record.flour_amount, record.water_amount,
         record.machine_speed, record.gluten_level, record.output_temp,
         record.machine, record.operator, record.bulk_ferment_temp, record.bulk_ferment_time,

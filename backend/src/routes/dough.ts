@@ -174,6 +174,7 @@ export class DoughRecipesController extends Controller {
               r.created_at, r.updated_at, r.timezone, m.name as material_name, m.type as material_type
        FROM dough_recipes r
        LEFT JOIN materials m ON r.material_id = m.id
+       WHERE m.type = 'dough'
        ORDER BY r.id DESC`,
     );
     return recipes;

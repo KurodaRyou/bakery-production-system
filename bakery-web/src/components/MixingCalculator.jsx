@@ -19,12 +19,12 @@ function MixingCalculator({ onBack }) {
 
   async function loadData() {
     try {
-      const [recipesData, prepTypesData] = await Promise.all([
+      const [recipesData, prepData] = await Promise.all([
         fetchRecipes(),
-        fetch('/api/preparations-types', { credentials: 'include' }).then(r => r.json())
+        fetch('/api/preparations', { credentials: 'include' }).then(r => r.json())
       ])
       setRecipes(recipesData)
-      setPreparations(prepTypesData)
+      setPreparations(prepData)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {

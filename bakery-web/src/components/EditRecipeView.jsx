@@ -273,6 +273,8 @@ function EditRecipeView({ recipe, onBack, onSuccess }) {
             onChange={e => setAuthor(e.target.value)}
           />
         </div>
+        {recipe.material_type === 'dough' && (
+        <>
         <div className="form-row">
           <label>预期出缸温度</label>
           <input 
@@ -292,6 +294,9 @@ function EditRecipeView({ recipe, onBack, onSuccess }) {
             onChange={e => setLossRate(e.target.value)}
           />
         </div>
+        </>
+      )}
+        )}
       </div>
 
       {recipe.material_type === 'dough' ? (

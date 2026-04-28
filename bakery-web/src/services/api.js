@@ -167,14 +167,14 @@ export const createUser = (data) => request('/users', { method: 'POST', body: JS
 export const updateUser = (id, data) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteUser = (id) => request(`/users/${id}`, { method: 'DELETE' })
 
-export const fetchRecipes = () => request('/recipes')
-export const fetchRecipeById = (id) => request(`/recipes/${id}`)
-export const createRecipe = (recipe) => request('/recipes', { method: 'POST', body: JSON.stringify(recipe) })
-export const updateRecipe = (id, recipe) => request(`/recipes/${id}`, { method: 'PUT', body: JSON.stringify(recipe) })
-export const deleteRecipe = (id) => request(`/recipes/${id}`, { method: 'DELETE' })
-export const fetchRecipeVersions = (id) => request(`/recipes/${id}/versions`)
-export const fetchRecipeVersionDetail = (id, ver) => request(`/recipes/${id}/versions/${ver}`)
-export const restoreRecipeVersion = (id, ver) => request(`/recipes/${id}/restore/${ver}`, { method: 'POST' })
+export const fetchRecipes = () => request('/dough')
+export const fetchRecipeById = (id) => request(`/dough/${id}`)
+export const createRecipe = (recipe) => request('/dough', { method: 'POST', body: JSON.stringify(recipe) })
+export const updateRecipe = (id, recipe) => request(`/dough/${id}`, { method: 'PUT', body: JSON.stringify(recipe) })
+export const deleteRecipe = (id) => request(`/dough/${id}`, { method: 'DELETE' })
+export const fetchRecipeVersions = (id) => request(`/dough/${id}/versions`)
+export const fetchRecipeVersionDetail = (id, ver) => request(`/dough/${id}/versions/${ver}`)
+export const restoreRecipeVersion = (id, ver) => request(`/dough/${id}/restore/${ver}`, { method: 'POST' })
 
 export const getPreviewBatchNumber = (records = []) => {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')

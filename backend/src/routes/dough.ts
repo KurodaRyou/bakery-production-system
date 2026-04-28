@@ -19,7 +19,7 @@ import {
 } from '../config/versioning';
 import { requireAuth, requireAdmin } from '../middleware/auth';
 import { AppError } from '../types/errors';
-import { createRecipeSchema, updateRecipeSchema } from '../validators/recipes';
+import { createRecipeSchema, updateRecipeSchema } from '../validators/dough';
 import { createValidateMiddleware } from '../middleware/validate';
 
 declare global {
@@ -52,7 +52,7 @@ function toNullableString(val: string | null | undefined): string | null {
   return val;
 }
 
-export interface Recipe {
+export interface DoughRecipe {
   id: number;
   name: string;
   author: string | null;
@@ -65,7 +65,7 @@ export interface Recipe {
   material_type: string | null;
 }
 
-export interface RecipeIngredient {
+export interface DoughRecipeIngredient {
   id?: number;
   material_id: number | null;
   stage: string;
@@ -77,12 +77,12 @@ export interface RecipeIngredient {
   loss_rate?: number | null;
 }
 
-export interface RecipeDetail extends Recipe {
-  ingredients: RecipeIngredient[];
+export interface DoughRecipeDetail extends DoughRecipe {
+  ingredients: DoughRecipeIngredient[];
   expected_temp: number | null;
 }
 
-export interface CreateRecipeRequest {
+export interface CreateDoughRecipeRequest {
   name: string;
   type: 'dough' | 'preparation';
   author?: string | null;
@@ -98,7 +98,7 @@ export interface CreateRecipeRequest {
   loss_rate?: number | string | null;
 }
 
-export interface UpdateRecipeRequest {
+export interface UpdateDoughRecipeRequest {
   name: string;
   material_id?: number | string;
   author?: string | null;
@@ -115,7 +115,7 @@ export interface UpdateRecipeRequest {
   description?: string | null;
 }
 
-export interface CreateRecipeResponse {
+export interface CreateDoughRecipeResponse {
   success: boolean;
   id: number;
   material_id: number | null;
@@ -123,7 +123,7 @@ export interface CreateRecipeResponse {
   version: string;
 }
 
-export interface UpdateRecipeResponse {
+export interface UpdateDoughRecipeResponse {
   success: boolean;
   version: string;
 }
@@ -142,8 +142,8 @@ export interface VersionInfo {
   timezone: string | null;
 }
 
-export interface RecipeVersion extends VersionInfo {
-  ingredients: RecipeIngredient[];
+export interface DoughRecipeVersion extends VersionInfo {
+  ingredients: DoughRecipeIngredient[];
 }
 
 async function deleteMaterialIfOrphaned(
@@ -164,11 +164,11 @@ async function deleteMaterialIfOrphaned(
   }
 }
 
-@Route('recipes')
-export class RecipesController extends Controller {
+@Route('dough')
+export class DoughRecipesController extends Controller {
   @Get()
   @Middlewares(requireAuth)
-  public async listRecipes(): Promise<Recipe[]> {
+  public async listDoughRecipes(): Promise<DoughRecipe[]> {
     const [recipes]: any = await pool.query(
       `SELECT r.id, r.name, r.author, r.material_id, r.current_version,
               r.created_at, r.updated_at, r.timezone, m.name as material_name, m.type as material_type
@@ -181,10 +181,10 @@ export class RecipesController extends Controller {
 
   @Get('{id}')
   @Middlewares(requireAuth)
-  public async getRecipe(
+  public async getDoughRecipe(
     @Path() id: number,
     @Request() req: express.Request,
-  ): Promise<RecipeDetail> {
+  ): Promise<DoughRecipeDetail> {
     if (isNaN(id)) {
       throw AppError.badRequest('无效的配方ID');
     }
@@ -200,7 +200,7 @@ export class RecipesController extends Controller {
     );
 
     if (recipes.length === 0) {
-      throw AppError.notFound('Recipe not found');
+      throw AppError.notFound('DoughRecipe not found');
     }
 
     const [ingredients]: any = await pool.query(
@@ -218,7 +218,7 @@ export class RecipesController extends Controller {
       [id, recipes[0].current_version],
     );
 
-    let result: RecipeDetail = {
+    let result: DoughRecipeDetail = {
       ...recipes[0],
       ingredients,
       expected_temp: versionInfo[0]?.expected_temp || null,
@@ -227,7 +227,7 @@ export class RecipesController extends Controller {
     if (!req.session!.canViewRecipes) {
       result = {
         ...recipes[0],
-        ingredients: ingredients.map((ing: RecipeIngredient) => ({
+        ingredients: ingredients.map((ing: DoughRecipeIngredient) => ({
           ...ing,
           material_name: '******',
           note: '******',
@@ -241,9 +241,9 @@ export class RecipesController extends Controller {
 
   @Post()
   @Middlewares(requireAdmin, createValidateMiddleware(createRecipeSchema))
-  public async createRecipe(
-    @Body() body: CreateRecipeRequest,
-  ): Promise<CreateRecipeResponse> {
+  public async createDoughRecipe(
+    @Body() body: CreateDoughRecipeRequest,
+  ): Promise<CreateDoughRecipeResponse> {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -350,10 +350,10 @@ export class RecipesController extends Controller {
 
   @Put('{id}')
   @Middlewares(requireAdmin, createValidateMiddleware(updateRecipeSchema))
-  public async updateRecipe(
+  public async updateDoughRecipe(
     @Path() id: number,
-    @Body() body: UpdateRecipeRequest,
-  ): Promise<UpdateRecipeResponse> {
+    @Body() body: UpdateDoughRecipeRequest,
+  ): Promise<UpdateDoughRecipeResponse> {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -371,7 +371,7 @@ export class RecipesController extends Controller {
         [id],
       );
       if (recipeRows.length === 0) {
-        throw AppError.notFound('Recipe not found');
+        throw AppError.notFound('DoughRecipe not found');
       }
       const currentVersion = recipeRows[0].current_version;
 
@@ -470,7 +470,7 @@ export class RecipesController extends Controller {
 
   @Delete('{id}')
   @Middlewares(requireAdmin)
-  public async deleteRecipe(@Path() id: number): Promise<{ success: boolean }> {
+  public async deleteDoughRecipe(@Path() id: number): Promise<{ success: boolean }> {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -540,7 +540,7 @@ export class RecipesController extends Controller {
     @Path() id: number,
     @Path() versionNumber: string,
     @Request() req: express.Request,
-  ): Promise<RecipeVersion> {
+  ): Promise<DoughRecipeVersion> {
     if (isNaN(id) || !versionNumber) {
       throw AppError.badRequest('无效的ID或版本号');
     }
@@ -562,12 +562,12 @@ export class RecipesController extends Controller {
       [versions[0].id],
     );
 
-    let result: RecipeVersion = { ...versions[0], ingredients };
+    let result: DoughRecipeVersion = { ...versions[0], ingredients };
 
     if (!req.session!.canViewRecipes) {
       result = {
         ...versions[0],
-        ingredients: ingredients.map((ing: RecipeIngredient) => ({
+        ingredients: ingredients.map((ing: DoughRecipeIngredient) => ({
           ...ing,
           material_name: '******',
           note: '******',

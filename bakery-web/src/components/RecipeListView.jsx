@@ -23,7 +23,11 @@ function RecipeListView({ showHeader = true, onRefresh, onBack }) {
 
   async function loadRecipes() {
     try {
-      const data = await fetchRecipes()
+      const [doughData, prepData] = await Promise.all([
+        fetchRecipes(),
+        fetch('/api/preparations', { credentials: 'include' }).then(r => r.json())
+      ])
+      const data = [...doughData, ...prepData]
       setCache(CACHE_KEY, data)
       setRecipes(prev => {
         if (prev.length !== data.length || prev[0]?.id !== data[0]?.id) {

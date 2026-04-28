@@ -12,7 +12,7 @@ import {
 } from '@tsoa/runtime';
 import express from 'express';
 import { pool } from '../config/db';
-import { getTimezone } from '../config/versioning';
+import { getTimezone, generateVersionNumber } from '../config/versioning';
 import { requireAuth, requireAdmin } from '../middleware/auth';
 import { AppError } from '../types/errors';
 import { createPreparationSchema, updatePreparationSchema } from '../validators/preparations';
@@ -40,6 +40,7 @@ export interface PreparationIngredient {
   stage: string | null;
   note: string | null;
   unit: string | null;
+  loss_rate?: number | null;
   material_name: string | null;
   material_type: string | null;
 }
@@ -73,6 +74,7 @@ export interface CreatePreparationRequest {
     percentage?: number;
     note?: string;
     unit?: string;
+    loss_rate?: number;
   }>;
 }
 
@@ -94,6 +96,7 @@ export interface UpdatePreparationRequest {
     percentage?: number;
     note?: string;
     unit?: string;
+    loss_rate?: number;
   }>;
 }
 
@@ -149,7 +152,7 @@ export class PreparationsController extends Controller {
       `SELECT pr.id, pr.name, pr.author, pr.material_id, pr.preparation_id, pr.current_version, pr.loss_rate,
               pr.created_at, pr.updated_at, m.name as material_name, m.type as material_type,
               pv.version_number, pv.created_at as version_created_at,
-              pic.id as pi_id, pic.material_id as pi_material_id, pic.percentage, pic.stage, pic.note, pic.unit,
+              pic.id as pi_id, pic.material_id as pi_material_id, pic.percentage, pic.stage, pic.note, pic.unit, pic.loss_rate as pi_loss_rate,
               mp.name as pi_material_name, mp.type as pi_material_type
        FROM preparation_recipes pr
        LEFT JOIN materials m ON pr.material_id = m.id
@@ -186,6 +189,7 @@ export class PreparationsController extends Controller {
           stage: row.stage,
           note: row.note,
           unit: row.unit,
+          loss_rate: row.pi_loss_rate,
           material_name: row.pi_material_name,
           material_type: row.pi_material_type,
         });
@@ -197,7 +201,10 @@ export class PreparationsController extends Controller {
 
   @Get('{id}')
   @Middlewares(requireAuth)
-  public async getPreparation(@Path() id: number): Promise<Preparation> {
+  public async getPreparation(
+    @Path() id: number,
+    @Request() req: express.Request,
+  ): Promise<Preparation> {
     if (isNaN(id)) {
       throw AppError.badRequest('无效的半成品ID');
     }
@@ -218,7 +225,7 @@ export class PreparationsController extends Controller {
     const recipe = recipes[0];
 
     const [ingredients]: any = await pool.query(
-      `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit,
+      `SELECT pic.id, pic.material_id, pic.stage, pic.percentage, pic.note, pic.unit, pic.loss_rate,
               m.name as material_name, m.type as material_type
        FROM preparation_ingredients_current pic
        LEFT JOIN materials m ON pic.material_id = m.id
@@ -226,7 +233,16 @@ export class PreparationsController extends Controller {
       [id, recipe.current_version],
     );
 
-    recipe.ingredients = ingredients;
+    if (!req.session!.canViewRecipes) {
+      recipe.ingredients = ingredients.map((ing: any) => ({
+        ...ing,
+        material_name: '******',
+        note: '******',
+      }));
+    } else {
+      recipe.ingredients = ingredients;
+    }
+
     return recipe;
   }
 
@@ -279,14 +295,14 @@ export class PreparationsController extends Controller {
       const recipeId = result.insertId;
 
       await connection.query(
-        'INSERT INTO preparation_versions (recipe_id, version_number, timezone) VALUES (?, ?, ?)',
-        [recipeId, versionNumber, getTimezone()],
+        'INSERT INTO preparation_versions (recipe_id, version_number, author, timezone) VALUES (?, ?, ?, ?)',
+        [recipeId, versionNumber, author || null, getTimezone()],
       );
 
       if (ingredients && ingredients.length > 0) {
         for (const ing of ingredients) {
           await connection.query(
-            'INSERT INTO preparation_ingredients_current (preparation_recipe_id, version, material_id, stage, percentage, note, unit) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO preparation_ingredients_current (preparation_recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
               recipeId,
               versionNumber,
@@ -295,6 +311,7 @@ export class PreparationsController extends Controller {
               ing.percentage || null,
               ing.note || null,
               ing.unit || null,
+              ing.loss_rate || 1,
             ],
           );
         }
@@ -331,6 +348,13 @@ export class PreparationsController extends Controller {
         throw AppError.badRequest('无效的半成品ID');
       }
 
+      const forbidden = ['id', 'created_at', 'updated_at', 'current_version'];
+      for (const key of Object.keys(body)) {
+        if (forbidden.includes(key)) {
+          throw AppError.badRequest(`字段 ${key} 不可修改`);
+        }
+      }
+
       await connection.beginTransaction();
 
       const [existing]: any = await connection.query(
@@ -343,6 +367,32 @@ export class PreparationsController extends Controller {
       }
 
       const currentVersion = existing[0].current_version;
+
+      const [currentIngredients]: any = await connection.query(
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM preparation_ingredients_current WHERE preparation_recipe_id = ? AND version = ?',
+        [id, currentVersion],
+      );
+
+      const normalize = (arr: any[]) => {
+        return arr.map(item => ({
+          material_id: item.material_id,
+          stage: item.stage || 'base',
+          percentage: parseFloat(item.percentage) || 0,
+          note: item.note || '',
+          unit: item.unit || '',
+          loss_rate: parseFloat(item.loss_rate) || 1,
+        })).sort((a, b) => a.material_id - b.material_id || a.stage.localeCompare(b.stage));
+      };
+
+      const normalizedCurrent = normalize(currentIngredients);
+      const normalizedNew = normalize(ingredients || []);
+
+      const isEqual = JSON.stringify(normalizedCurrent) === JSON.stringify(normalizedNew);
+
+      if (isEqual) {
+        await connection.commit();
+        return { success: true, version: currentVersion };
+      }
 
       const today = new Date().toLocaleDateString('en-CA').replace(/-/g, '');
       const prefix = `v${today}`;
@@ -381,18 +431,13 @@ export class PreparationsController extends Controller {
         );
       }
 
-      const [archiveIngredients]: any = await connection.query(
-        'SELECT material_id, stage, percentage, note, unit FROM preparation_ingredients_current WHERE preparation_recipe_id = ? AND version = ?',
-        [id, currentVersion],
-      );
-
-      if (archiveIngredients.length > 0) {
+      if (currentIngredients.length > 0) {
         const [versionInfo]: any = await connection.query(
           'SELECT id FROM preparation_versions WHERE recipe_id = ? AND version_number = ?',
           [id, currentVersion],
         );
         if (versionInfo.length > 0) {
-          for (const ing of archiveIngredients) {
+          for (const ing of currentIngredients) {
             await connection.query(
               'INSERT INTO preparation_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
               [
@@ -402,7 +447,7 @@ export class PreparationsController extends Controller {
                 ing.percentage,
                 ing.note,
                 ing.unit,
-                null,
+                ing.loss_rate || 1,
               ],
             );
           }
@@ -415,14 +460,14 @@ export class PreparationsController extends Controller {
       );
 
       await connection.query(
-        'INSERT INTO preparation_versions (recipe_id, version_number, timezone) VALUES (?, ?, ?)',
-        [id, newVersion, getTimezone()],
+        'INSERT INTO preparation_versions (recipe_id, version_number, author, timezone) VALUES (?, ?, ?, ?)',
+        [id, newVersion, author || null, getTimezone()],
       );
 
       if (ingredients && ingredients.length > 0) {
         for (const ing of ingredients) {
           await connection.query(
-            'INSERT INTO preparation_ingredients_current (preparation_recipe_id, version, material_id, stage, percentage, note, unit) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO preparation_ingredients_current (preparation_recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
               id,
               newVersion,
@@ -431,6 +476,7 @@ export class PreparationsController extends Controller {
               ing.percentage || null,
               ing.note || null,
               ing.unit || null,
+              ing.loss_rate || 1,
             ],
           );
         }
@@ -536,6 +582,7 @@ export class PreparationsController extends Controller {
   public async getVersion(
     @Path() id: number,
     @Path() version: string,
+    @Request() req: express.Request,
   ): Promise<PreparationVersionIngredient[]> {
     if (isNaN(id) || !version) {
       throw AppError.badRequest('无效的ID或版本号');
@@ -550,6 +597,104 @@ export class PreparationsController extends Controller {
        ORDER BY pia.stage, pia.id`,
       [id, version],
     );
+
+    if (!req.session!.canViewRecipes) {
+      return ingredients.map((ing: any) => ({
+        ...ing,
+        material_name: '******',
+        note: '******',
+      }));
+    }
+
     return ingredients;
+  }
+
+  @Post('{id}/restore/{version}')
+  @Middlewares(requireAdmin)
+  public async restoreVersion(
+    @Path() id: number,
+    @Path() version: string,
+  ): Promise<{ success: boolean; version: string }> {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      if (isNaN(id)) {
+        throw AppError.badRequest('无效的半成品ID');
+      }
+
+      const [versions]: any = await connection.query(
+        'SELECT * FROM preparation_versions WHERE recipe_id = ? AND version_number = ?',
+        [id, version],
+      );
+      if (versions.length === 0) {
+        throw AppError.notFound('Version not found');
+      }
+      const versionToRestore = versions[0];
+
+      const [recipeRows]: any = await connection.query(
+        'SELECT current_version FROM preparation_recipes WHERE id = ?',
+        [id],
+      );
+      const currentVersion = recipeRows[0].current_version;
+
+      const newVersion = await generateVersionNumber(connection, id, 'preparation_versions');
+
+      // Archive current ingredients before replacing them
+      const [currentIngredients]: any = await connection.query(
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM preparation_ingredients_current WHERE preparation_recipe_id = ? AND version = ?',
+        [id, currentVersion],
+      );
+      if (currentIngredients.length > 0) {
+        const [versionInfo]: any = await connection.query(
+          'SELECT id FROM preparation_versions WHERE recipe_id = ? AND version_number = ?',
+          [id, currentVersion],
+        );
+        if (versionInfo.length > 0) {
+          for (const ing of currentIngredients) {
+            await connection.query(
+              'INSERT INTO preparation_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [versionInfo[0].id, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
+            );
+          }
+        }
+      }
+
+      await connection.query(
+        'INSERT INTO preparation_versions (recipe_id, version_number, author, timezone) VALUES (?, ?, ?, ?)',
+        [id, newVersion, versionToRestore.author || null, getTimezone()],
+      );
+
+      await connection.query(
+        'DELETE FROM preparation_ingredients_current WHERE preparation_recipe_id = ? AND version = ?',
+        [id, currentVersion],
+      );
+
+      const [archivedIngredients]: any = await connection.query(
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM preparation_ingredients_archive WHERE version_id = ?',
+        [versionToRestore.id],
+      );
+
+      for (const ing of archivedIngredients) {
+        await connection.query(
+          'INSERT INTO preparation_ingredients_current (preparation_recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [id, newVersion, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
+        );
+      }
+
+      await connection.query(
+        'UPDATE preparation_recipes SET current_version = ?, author = ? WHERE id = ?',
+        [newVersion, versionToRestore.author || null, id],
+      );
+
+      await connection.commit();
+      return { success: true, version: newVersion };
+    } catch (error) {
+      await connection.rollback();
+      console.error('DB error:', error);
+      throw AppError.internal('服务器内部错误');
+    } finally {
+      connection.release();
+    }
   }
 }

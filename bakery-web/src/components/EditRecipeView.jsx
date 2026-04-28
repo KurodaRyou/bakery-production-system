@@ -296,7 +296,6 @@ function EditRecipeView({ recipe, onBack, onSuccess }) {
         </div>
         </>
       )}
-        )}
       </div>
 
       {recipe.material_type === 'dough' ? (

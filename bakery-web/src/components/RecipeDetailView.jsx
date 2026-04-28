@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
-import { fetchRecipeById, deleteRecipe, fetchRecipeVersions, restoreRecipeVersion } from '../services/api'
 import EditRecipeView from './EditRecipeView'
 
 function formatTimeWithTimezone(utcTime) {
   return new Date(utcTime).toLocaleString('zh-CN');
 }
 
-function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
+function RecipeDetailView({ recipeId, recipeType = 'dough', onBack, showHeader = true }) {
   const [recipe, setRecipe] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -14,6 +13,7 @@ function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [versions, setVersions] = useState([])
   const [alert, setAlert] = useState('')
+  const isPreparation = recipeType === 'preparation'
 
   useEffect(() => {
     loadRecipe()
@@ -22,7 +22,10 @@ function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
   async function loadRecipe() {
     setLoading(true)
     try {
-      const data = await fetchRecipeById(recipeId)
+      const url = isPreparation ? `/api/preparations/${recipeId}` : `/api/dough/${recipeId}`
+      const res = await fetch(url, { credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message || 'Not found')
       setRecipe(data)
     } catch (error) {
       console.error('Failed to load recipe:', error)
@@ -32,7 +35,9 @@ function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
 
   async function handleDelete() {
     try {
-      await deleteRecipe(recipeId)
+      const url = isPreparation ? `/api/preparations/${recipeId}` : `/api/dough/${recipeId}`
+      const res = await fetch(url, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) throw new Error('Delete failed')
       onBack()
     } catch (error) {
       setAlert(`删除失败: ${error.message}`)
@@ -41,7 +46,11 @@ function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
 
   async function handleRestore(versionNumber) {
     try {
-      await restoreRecipeVersion(recipeId, versionNumber)
+      const url = isPreparation
+        ? `/api/preparations/${recipeId}/restore/${versionNumber}`
+        : `/api/dough/${recipeId}/restore/${versionNumber}`
+      const res = await fetch(url, { method: 'POST', credentials: 'include' })
+      if (!res.ok) throw new Error('Restore failed')
       setAlert('已恢复到该版本')
       setShowVersionHistory(false)
       loadRecipe()
@@ -52,7 +61,10 @@ function RecipeDetailView({ recipeId, onBack, showHeader = true }) {
 
   async function loadVersions() {
     try {
-      const data = await fetchRecipeVersions(recipeId)
+      const url = isPreparation ? `/api/preparations/${recipeId}/versions` : `/api/dough/${recipeId}/versions`
+      const res = await fetch(url, { credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error?.message || 'Failed')
       setVersions(data)
     } catch (error) {
       console.error('Failed to load versions:', error)

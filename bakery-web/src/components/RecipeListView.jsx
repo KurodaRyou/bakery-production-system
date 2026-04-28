@@ -58,7 +58,8 @@ function RecipeListView({ showHeader = true, onRefresh, onBack }) {
   if (selectedRecipe) {
     return (
       <RecipeDetailView 
-        recipeId={selectedRecipe.id} 
+        recipeId={selectedRecipe.id}
+        recipeType={selectedRecipe.material_type || selectedRecipe.itemType || 'dough'} 
         onBack={() => setSelectedRecipe(null)}
       />
     )

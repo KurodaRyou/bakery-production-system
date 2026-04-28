@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { fetchRecipeById, deleteRecipe, fetchRecipeVersions, restoreRecipeVersion, deletePreparation } from '../services/api'
 import EditRecipeView from './EditRecipeView'
 
 function formatTimeWithTimezone(utcTime) {
@@ -35,9 +36,11 @@ function RecipeDetailView({ recipeId, recipeType = 'dough', onBack, showHeader =
 
   async function handleDelete() {
     try {
-      const url = isPreparation ? `/api/preparations/${recipeId}` : `/api/dough/${recipeId}`
-      const res = await fetch(url, { method: 'DELETE', credentials: 'include' })
-      if (!res.ok) throw new Error('Delete failed')
+      if (isPreparation) {
+        await deletePreparation(recipeId)
+      } else {
+        await deleteRecipe(recipeId)
+      }
       onBack()
     } catch (error) {
       setAlert(`删除失败: ${error.message}`)
@@ -46,11 +49,11 @@ function RecipeDetailView({ recipeId, recipeType = 'dough', onBack, showHeader =
 
   async function handleRestore(versionNumber) {
     try {
-      const url = isPreparation
-        ? `/api/preparations/${recipeId}/restore/${versionNumber}`
-        : `/api/dough/${recipeId}/restore/${versionNumber}`
-      const res = await fetch(url, { method: 'POST', credentials: 'include' })
-      if (!res.ok) throw new Error('Restore failed')
+      if (isPreparation) {
+        await fetch(`/api/preparations/${recipeId}/restore/${versionNumber}`, { method: 'POST', credentials: 'include' })
+      } else {
+        await restoreRecipeVersion(recipeId, versionNumber)
+      }
       setAlert('已恢复到该版本')
       setShowVersionHistory(false)
       loadRecipe()
@@ -61,10 +64,9 @@ function RecipeDetailView({ recipeId, recipeType = 'dough', onBack, showHeader =
 
   async function loadVersions() {
     try {
-      const url = isPreparation ? `/api/preparations/${recipeId}/versions` : `/api/dough/${recipeId}/versions`
-      const res = await fetch(url, { credentials: 'include' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error?.message || 'Failed')
+      const data = isPreparation
+        ? await fetch(`/api/preparations/${recipeId}/versions`, { credentials: 'include' }).then(r => r.json())
+        : await fetchRecipeVersions(recipeId)
       setVersions(data)
     } catch (error) {
       console.error('Failed to load versions:', error)

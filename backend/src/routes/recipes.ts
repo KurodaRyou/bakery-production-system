@@ -309,8 +309,8 @@ export class RecipesController extends Controller {
       const recipeId = result.insertId;
 
       await connection.query(
-        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, timezone) VALUES (?, ?, ?, ?)',
-        [recipeId, versionNumber, toNumber(expected_temp, null), getTimezone()],
+        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, author, timezone) VALUES (?, ?, ?, ?, ?)',
+        [recipeId, versionNumber, toNumber(expected_temp, null), author || null, getTimezone()],
       );
 
       if (ingredients && ingredients.length > 0) {
@@ -412,15 +412,20 @@ export class RecipesController extends Controller {
       const newVersion = await generateVersionNumber(connection, id);
 
       const [versionResult]: any = await connection.query(
-        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, timezone) VALUES (?, ?, ?, ?)',
-        [id, newVersion, expected_temp || null, getTimezone()],
+        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, author, timezone) VALUES (?, ?, ?, ?, ?)',
+        [id, newVersion, expected_temp || null, author || null, getTimezone()],
       );
-      const versionId = versionResult.insertId;
+
+      // Archive current ingredients under the CURRENT version's id (the one being replaced)
+      const [oldVersionRow]: any = await connection.query(
+        'SELECT id FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+        [id, currentVersion],
+      );
 
       for (const ing of currentIngredients) {
         await connection.query(
           'INSERT INTO dough_recipe_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [versionId, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
+          [oldVersionRow[0]?.id, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
         );
       }
 
@@ -603,9 +608,29 @@ export class RecipesController extends Controller {
       const currentVersion = recipeRows[0].current_version;
       const newVersion = await generateVersionNumber(connection, id);
 
+      // Archive current ingredients before replacing them
+      const [currentIngredients]: any = await connection.query(
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_recipe_ingredients_current WHERE recipe_id = ? AND version = ?',
+        [id, currentVersion],
+      );
+      if (currentIngredients.length > 0) {
+        const [versionInfo]: any = await connection.query(
+          'SELECT id FROM dough_recipe_versions WHERE recipe_id = ? AND version_number = ?',
+          [id, currentVersion],
+        );
+        if (versionInfo.length > 0) {
+          for (const ing of currentIngredients) {
+            await connection.query(
+              'INSERT INTO dough_recipe_ingredients_archive (version_id, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [versionInfo[0].id, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
+            );
+          }
+        }
+      }
+
       await connection.query(
-        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, timezone) VALUES (?, ?, ?, ?)',
-        [id, newVersion, versionToRestore.expected_temp || null, getTimezone()],
+        'INSERT INTO dough_recipe_versions (recipe_id, version_number, expected_temp, author, timezone) VALUES (?, ?, ?, ?, ?)',
+        [id, newVersion, versionToRestore.expected_temp || null, versionToRestore.author || null, getTimezone()],
       );
 
       await connection.query(
@@ -614,20 +639,20 @@ export class RecipesController extends Controller {
       );
 
       const [archivedIngredients]: any = await connection.query(
-        'SELECT material_id, stage, percentage, note, unit FROM dough_recipe_ingredients_archive WHERE version_id = ?',
+        'SELECT material_id, stage, percentage, note, unit, loss_rate FROM dough_recipe_ingredients_archive WHERE version_id = ?',
         [versionToRestore.id],
       );
 
       for (const ing of archivedIngredients) {
         await connection.query(
-          'INSERT INTO dough_recipe_ingredients_current (recipe_id, version, material_id, stage, percentage, note, unit) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [id, newVersion, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit],
+          'INSERT INTO dough_recipe_ingredients_current (recipe_id, version, material_id, stage, percentage, note, unit, loss_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [id, newVersion, ing.material_id, ing.stage, ing.percentage, ing.note, ing.unit, ing.loss_rate || 1],
         );
       }
 
       await connection.query(
-        'UPDATE dough_recipes SET current_version = ? WHERE id = ?',
-        [newVersion, id],
+        'UPDATE dough_recipes SET current_version = ?, author = ? WHERE id = ?',
+        [newVersion, versionToRestore.author || null, id],
       );
 
       await connection.commit();

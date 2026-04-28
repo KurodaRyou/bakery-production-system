@@ -12,7 +12,7 @@ const csrfUtils: DoubleCsrfUtilities = doubleCsrf({
   cookieName: CSRF_COOKIE_NAME,
   cookieOptions: {
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     sameSite: 'lax',
     path: '/',
   },
@@ -26,7 +26,14 @@ const csrfUtils: DoubleCsrfUtilities = doubleCsrf({
 });
 
 export function createCsrfToken(req: Request, res: Response): string {
-  return csrfUtils.generateCsrfToken(req, res);
+  return csrfUtils.generateCsrfToken(req, res, {
+    cookieOptions: {
+      httpOnly: false,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+    },
+  });
 }
 
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {

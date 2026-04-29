@@ -62,7 +62,7 @@ const parseError = async (res) => {
   }
 
   if (data && data.error) {
-    return { code: 'UNKNOWN', message: data.error }
+    return { code: data.error, message: data.message || data.error, data }
   }
 
   return { code: 'UNKNOWN', message: `请求失败 (${res.status})` }
@@ -105,6 +105,11 @@ const request = async (path, options = {}) => {
 
   if (!res.ok) {
     const err = await parseError(res)
+    if ((res.status === 409 || res.status === 400) && err.data) {
+      const error = new Error(err.message)
+      error.data = err.data
+      throw error
+    }
     throw new Error(err.message || friendlyMessage(err.code, res.status))
   }
 
@@ -161,6 +166,7 @@ export const fetchMaterials = () => request('/materials')
 export const createMaterial = (data) => request('/materials', { method: 'POST', body: JSON.stringify(data) })
 export const updateMaterial = (id, data) => request(`/materials/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteMaterial = (id) => request(`/materials/${id}`, { method: 'DELETE' })
+export const batchDeleteMaterials = (ids) => request('/materials/batch-delete', { method: 'POST', body: JSON.stringify({ ids }) })
 
 export const fetchUsers = () => request('/users')
 export const createUser = (data) => request('/users', { method: 'POST', body: JSON.stringify(data) })

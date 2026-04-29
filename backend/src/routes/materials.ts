@@ -158,6 +158,20 @@ export class IngredientsController extends Controller {
         throw AppError.notFound('原材料不存在');
       }
       const materialId = rows[0].material_id;
+
+      const refs = await findMaterialRecipeRefs(connection, [materialId]);
+      if (refs.has(materialId)) {
+        const err = new Error('该原材料正在被配方使用，无法删除。请先从下列配方中移除该材料后再试。') as any;
+        err.statusCode = 409;
+        err.customResponse = {
+          error: 'material_in_use',
+          message: '该原材料正在被配方使用，无法删除。请先从下列配方中移除该材料后再试。',
+          references: refs.get(materialId)
+        };
+        err._skipCatch = true;
+        throw err;
+      }
+
       await connection.beginTransaction();
       await connection.query('DELETE FROM ingredients WHERE id = ?', [id]);
       await deleteMaterialIfOrphaned(connection, materialId);
@@ -165,6 +179,8 @@ export class IngredientsController extends Controller {
       return { success: true };
     } catch (error) {
       await connection.rollback();
+      const e = error as any;
+      if (e._skipCatch) throw error;
       console.error('Server error:', error);
       throw AppError.internal('服务器内部错误');
     } finally {
@@ -230,20 +246,136 @@ export class MaterialsController extends Controller {
   public async deleteMaterial(@Path() id: number): Promise<{ success: boolean }> {
     const connection = await pool.getConnection();
     try {
-      const [rows]: any = await connection.query('SELECT id FROM materials WHERE id = ?', [id]);
+      const [rows]: any = await connection.query('SELECT id, name FROM materials WHERE id = ?', [id]);
       if (rows.length === 0) {
         throw AppError.notFound('物料不存在');
       }
-      await connection.beginTransaction();
-      await deleteMaterialIfOrphaned(connection, id);
+
+      const refs = await findMaterialRecipeRefs(connection, [id]);
+      if (refs.has(id)) {
+        const err = new Error('该原材料正在被配方使用，无法删除。请先从下列配方中移除该材料后再试。') as any;
+        err.statusCode = 409;
+        err.customResponse = {
+          error: 'material_in_use',
+          message: '该原材料正在被配方使用，无法删除。请先从下列配方中移除该材料后再试。',
+          references: refs.get(id)
+        };
+err._skipCatch = true;
+        throw err;
+      }
+
+      await connection.query('DELETE FROM ingredients WHERE material_id = ?', [id]);
+      await connection.query('DELETE FROM materials WHERE id = ?', [id]);
       await connection.commit();
       return { success: true };
     } catch (error) {
       await connection.rollback();
+      const e = error as any;
+      if (e._skipCatch) {
+        throw error;
+      }
       console.error('Server error:', error);
       throw AppError.internal('服务器内部错误');
     } finally {
       connection.release();
     }
   }
+
+  @Post('batch-delete')
+  @Middlewares(requireAdmin)
+  public async batchDeleteMaterials(@Body() body: { ids: number[] }): Promise<any> {
+    const connection = await pool.getConnection();
+    try {
+      const { ids } = body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw AppError.badRequest('ids must be a non-empty array');
+      }
+
+      const refs = await findMaterialRecipeRefs(connection, ids);
+
+      const [materials]: any = await connection.query(
+        'SELECT id, name FROM materials WHERE id IN (' + ids.map(() => '?').join(',') + ')',
+        ids
+      );
+
+      const failedDeletions: any[] = [];
+      const safeToDelete: any[] = [];
+
+      for (const m of materials) {
+        if (refs.has(m.id)) {
+          failedDeletions.push({ materialId: m.id, materialName: m.name, recipes: refs.get(m.id) });
+        } else {
+          safeToDelete.push(m);
+        }
+      }
+
+      if (failedDeletions.length > 0) {
+        const err = new Error('部分原材料正在被配方使用，无法删除。请先从下列配方中移除对应材料后再试。') as any;
+        err.statusCode = 409;
+        err.customResponse = {
+          error: 'materials_in_use',
+          message: '部分原材料正在被配方使用，无法删除。请先从下列配方中移除对应材料后再试。',
+          failedDeletions
+        };
+        err._skipCatch = true;
+        throw err;
+      }
+
+      await connection.beginTransaction();
+      await connection.query(
+        'DELETE FROM ingredients WHERE material_id IN (' + safeToDelete.map(() => '?').join(',') + ')',
+        safeToDelete.map((m: any) => m.id)
+      );
+      await connection.query(
+        'DELETE FROM materials WHERE id IN (' + safeToDelete.map(() => '?').join(',') + ')',
+        safeToDelete.map((m: any) => m.id)
+      );
+      await connection.commit();
+
+      return {
+        deleted: safeToDelete.length,
+        deletedMaterials: safeToDelete.map((m: any) => ({ id: m.id, name: m.name }))
+      };
+    } catch (error) {
+      await connection.rollback();
+      const e = error as any;
+      if (e._skipCatch) throw error;
+      console.error('Server error:', error);
+      throw AppError.internal('服务器内部错误');
+    } finally {
+      connection.release();
+    }
+  }
+}
+
+async function findMaterialRecipeRefs(connection: any, materialIds: number[]): Promise<Map<number, any[]>> {
+  const result = new Map();
+  if (!materialIds || materialIds.length === 0) return result;
+
+  const placeholders = materialIds.map(() => '?').join(',');
+
+  const [doughRefs]: any = await connection.query(`
+    SELECT di.material_id, d.id, d.name, d.current_version as version
+    FROM dough_ingredients_current di
+    JOIN doughs d ON d.id = di.dough_id
+    WHERE di.material_id IN (${placeholders})
+  `, materialIds);
+
+  const [prepRefs]: any = await connection.query(`
+    SELECT pi.material_id, p.id, p.name, p.current_version as version
+    FROM preparation_ingredients_current pi
+    JOIN preparations p ON p.id = pi.preparation_id
+    WHERE pi.material_id IN (${placeholders})
+  `, materialIds);
+
+  for (const row of doughRefs) {
+    if (!result.has(row.material_id)) result.set(row.material_id, []);
+    result.get(row.material_id).push({ type: 'dough', id: row.id, name: row.name, version: row.version });
+  }
+  for (const row of prepRefs) {
+    if (!result.has(row.material_id)) result.set(row.material_id, []);
+    result.get(row.material_id).push({ type: 'preparation', id: row.id, name: row.name, version: row.version });
+  }
+
+  return result;
 }

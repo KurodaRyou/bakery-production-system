@@ -38,6 +38,10 @@ export class AppError extends Error {
     return new AppError('FORBIDDEN', { message, statusCode: 403 });
   }
 
+  static conflict(message = '冲突'): AppError {
+    return new AppError('CONFLICT', { message, statusCode: 409 });
+  }
+
   static internal(message = '服务器内部错误'): AppError {
     return new AppError('INTERNAL_ERROR', { message, statusCode: 500 });
   }

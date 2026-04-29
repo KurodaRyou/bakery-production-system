@@ -6,11 +6,16 @@ export function notFoundHandler(req: Request, _res: Response, next: NextFunction
 }
 
 export function errorHandler(
-  err: Error,
+  err: any,
   _req: Request,
   res: Response,
   _next: NextFunction,
 ): void {
+  if (err && err.customResponse) {
+    res.status(err.statusCode || 500).json(err.customResponse);
+    return;
+  }
+
   const isAppError = err instanceof AppError;
 
   const statusCode = isAppError ? err.statusCode : 500;
